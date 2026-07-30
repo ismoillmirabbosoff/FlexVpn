@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Faoliyat tarixi — VPN Panel{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Faoliyat tarixi</h1>
+    <p>Panelda bajarilgan amallar va VPN ulanishlari</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card" style="margin-top:0">
+    <div class="card-head">
+      <div>
+        <h2>Panel amallari</h2>
+        <div class="sub">Kim, nima qildi va qaysi IP dan</div>
+      </div>
+    </div>
+    <div class="card-body tight">
+      <ul class="timeline">
+        {% for event in audit_events %}
+        <li>
+          <div class="tl-icon">
+            {%- set icon = event.action -%}
+            {% if icon.startswith('login') %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            {% elif 'delete' in icon %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+            {% elif 'disable' in icon %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+            {% elif 'password' in icon %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+            {% endif %}
+          </div>
+          <div class="tl-body">
+            <div class="tl-title">{{ event.action|action_label }}{% if event.target %} — <b>{{ event.target }}</b>{% endif %}</div>
+            <div class="tl-meta">
+              {{ event.actor or 'tizim' }}{% if event.ip %} &middot; {{ event.ip }}{% endif %}
+              {%- if event.detail %} &middot; {{ event.detail }}{% endif %}
+            </div>
+          </div>
+          <div class="tl-time">{{ event.ts|ago }}</div>
+        </li>
+        {% else %}
+        <li><div class="empty" style="width:100%"><p>Hali amallar qayd etilmagan</p></div></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:0">
+    <div class="card-head">
+      <div>
+        <h2>VPN ulanishlari</h2>
+        <div class="sub">Ulanish / uzilish jurnali</div>
+      </div>
+    </div>
+    <div class="card-body tight">
+      <ul class="timeline">
+        {% for event in sessions %}
+        <li>
+          <div class="tl-icon">
+            {% if event.event == 'connect' %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+            {% endif %}
+          </div>
+          <div class="tl-body">
+            <div class="tl-title"><b>{{ event.user }}</b> {{ 'ulandi' if event.event == 'connect' else 'uzildi' }}</div>
+            <div class="tl-meta">
+              {{ event.real_ip or '—' }}{% if event.vpn_ip %} &rarr; {{ event.vpn_ip }}{% endif %}
+              {%- if event.event == 'disconnect' %} &middot; {{ event.duration|dur }} &middot;
+                &darr; {{ event.get('bytes_received', 0)|fbytes }} &uarr; {{ event.get('bytes_sent', 0)|fbytes }}
+              {%- endif %}
+            </div>
+          </div>
+          <div class="tl-time">{{ event.ts|ago }}</div>
+        </li>
+        {% else %}
+        <li><div class="empty" style="width:100%"><p>Hali ulanishlar qayd etilmagan</p></div></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

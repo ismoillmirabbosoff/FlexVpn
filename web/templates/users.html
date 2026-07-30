@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Foydalanuvchilar — VPN Panel{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Foydalanuvchilar</h1>
+    <p>{{ users|length }} ta hisob &middot; {{ disable_days }} kun faolsiz qolgani bloklanadi, {{ delete_days }} kunda o'chiriladi</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-primary" type="button" data-modal-open="add-user-modal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Yangi foydalanuvchi
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>Hisoblar</h2>
+      <div class="sub">Faollik oxirgi ulanish vaqti bo'yicha hisoblanadi</div>
+    </div>
+  </div>
+  <div class="card-body tight">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Foydalanuvchi</th>
+            <th>Holat</th>
+            <th>Oxirgi faollik</th>
+            <th>Avtomatik tozalash</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          {% set activity = user.activity %}
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="avatar">{{ user.username[0]|upper }}</div>
+                <div class="meta">
+                  <div class="name">{{ user.username }}</div>
+                  <div class="sub">
+                    {% if activity.created %}{{ activity.created|dt }} da qo'shilgan{% else %}—{% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td data-label="Holat">
+              {% if activity.online %}
+                <span class="badge solid"><span class="dot pulse"></span>Onlayn</span>
+              {% elif activity.disabled %}
+                <span class="badge warn">Bloklangan</span>
+              {% else %}
+                <span class="badge"><span class="dot hollow"></span>Faol</span>
+              {% endif %}
+            </td>
+            <td data-label="Oxirgi faollik">
+              {% if activity.online %}
+                <span class="num">Hozir</span>
+              {% elif activity.last_seen %}
+                <span class="num">{{ activity.last_seen|ago }}</span>
+              {% else %}
+                <span style="color:var(--text-3)">Hech qachon ulanmagan</span>
+              {% endif %}
+            </td>
+            <td data-label="Avtomatik tozalash">
+              {% if activity.online %}
+                <span style="color:var(--text-3)">—</span>
+              {% elif activity.disabled %}
+                <span class="badge warn">{{ activity.days_to_delete }} kundan keyin o'chiriladi</span>
+              {% elif activity.days_to_disable <= 7 %}
+                <span class="badge warn">{{ activity.days_to_disable }} kundan keyin bloklanadi</span>
+              {% else %}
+                <span style="color:var(--text-3)" class="num">{{ activity.days_to_disable }} kun qoldi</span>
+              {% endif %}
+            </td>
+            <td class="actions">
+              <a class="btn btn-sm btn-quiet" href="{{ url_for('download_config', username=user.username) }}"
+                 title="Konfiguratsiyani yuklab olish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </a>
+
+              <button class="btn btn-sm btn-quiet" type="button"
+                      data-modal-open="reset-modal" data-fill-user="{{ user.username }}" title="Parolni yangilash">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              </button>
+
+              {% if activity.online %}
+              <form method="post" action="{{ url_for('disconnect_user', username=user.username) }}"
+                    data-confirm="{{ user.username }} ulanishi uziladi.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-quiet" type="submit" title="Ulanishni uzish">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                </button>
+              </form>
+              {% endif %}
+
+              <form method="post" action="{{ url_for('toggle_user', username=user.username) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-quiet" type="submit"
+                        title="{{ 'Blokdan chiqarish' if activity.disabled else 'Bloklash' }}">
+                  {% if activity.disabled %}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  {% else %}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+                  {% endif %}
+                </button>
+              </form>
+
+              <form method="post" action="{{ url_for('delete_user', username=user.username) }}"
+                    data-confirm-title="Foydalanuvchini o'chirish"
+                    data-confirm="{{ user.username }} hisobi va uning konfiguratsiyasi butunlay o'chiriladi. Buni qaytarib bo'lmaydi.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-quiet btn-danger" type="submit" title="O'chirish">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
+            <p>Hali foydalanuvchi qo'shilmagan</p>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ------------------------------------------------------- yangi foydalanuvchi -->
+<div class="modal-backdrop" id="add-user-modal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3>Yangi foydalanuvchi</h3>
+    <p class="modal-sub">Parol faqat shu yerda ko'rinadi — keyin u qaytarib bo'lmaydigan tarzda hashlanadi.</p>
+    <form method="post" action="{{ url_for('add_user') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="new-username">Username</label>
+        <input class="input" id="new-username" name="username" required spellcheck="false"
+               pattern="[A-Za-z0-9][A-Za-z0-9._\-]{1,30}[A-Za-z0-9]"
+               placeholder="masalan: alisher.n">
+        <div class="hint">3–32 belgi. Harf yoki raqam bilan boshlanib tugaydi.</div>
+      </div>
+      <div class="field">
+        <label for="new-password">Parol</label>
+        <div class="input-group">
+          <input class="input" id="new-password" name="password" type="password" required minlength="10">
+          <button class="btn btn-icon" type="button" data-reveal="new-password" aria-label="Ko'rsatish">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="btn btn-icon" type="button" data-generate="new-password" aria-label="Parol yaratish">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4v6h6M20 20v-6h-6"/><path d="M20 9a8 8 0 0 0-14-3M4 15a8 8 0 0 0 14 3"/></svg>
+          </button>
+        </div>
+        <div class="meter" data-meter-for="new-password"><i></i><i></i><i></i><i></i></div>
+        <div class="hint">Kamida 10 belgi, 3 xil belgi turi.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-modal-close>Bekor qilish</button>
+        <button class="btn btn-primary" type="submit">Qo'shish</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ----------------------------------------------------------- parolni yangilash -->
+<div class="modal-backdrop" id="reset-modal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3>Parolni yangilash</h3>
+    <p class="modal-sub"><b data-slot="user"></b> uchun yangi parol. Hozirgi ulanishi uziladi va yangi .ovpn fayl tayyorlanadi.</p>
+    <form method="post" data-action-template="{{ url_for('reset_password', username='__USER__') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="reset-password">Yangi parol</label>
+        <div class="input-group">
+          <input class="input" id="reset-password" name="password" type="password" required minlength="10">
+          <button class="btn btn-icon" type="button" data-reveal="reset-password" aria-label="Ko'rsatish">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="btn btn-icon" type="button" data-generate="reset-password" aria-label="Parol yaratish">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4v6h6M20 20v-6h-6"/><path d="M20 9a8 8 0 0 0-14-3M4 15a8 8 0 0 0 14 3"/></svg>
+          </button>
+        </div>
+        <div class="meter" data-meter-for="reset-password"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-modal-close>Bekor qilish</button>
+        <button class="btn btn-primary" type="submit">Saqlash</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

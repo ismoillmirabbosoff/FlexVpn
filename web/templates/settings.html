@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Sozlamalar — VPN Panel{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Sozlamalar</h1>
+    <p>Admin hisobi, xavfsizlik holati va avtomatik tozalash</p>
+  </div>
+</div>
+
+{% if admin.must_change %}
+<div class="flash error" style="margin-bottom:18px">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+  <span><b>Boshlang'ich parol ishlatilmoqda.</b> Panelning qolgan bo'limlari parol almashtirilgandan keyin ochiladi.</span>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div>
+    <div class="card" style="margin-top:0">
+      <div class="card-head">
+        <div>
+          <h2>Admin paroli</h2>
+          <div class="sub">Login: <span class="mono">{{ admin.username }}</span></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('change_password') }}" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="current_password">Joriy parol</label>
+            <input class="input" id="current_password" name="current_password" type="password"
+                   autocomplete="current-password" required>
+          </div>
+          <div class="field">
+            <label for="new_password">Yangi parol</label>
+            <div class="input-group">
+              <input class="input" id="new_password" name="new_password" type="password"
+                     autocomplete="new-password" required minlength="10">
+              <button class="btn btn-icon" type="button" data-reveal="new_password" aria-label="Ko'rsatish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="btn btn-icon" type="button" data-generate="new_password" aria-label="Parol yaratish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4v6h6M20 20v-6h-6"/><path d="M20 9a8 8 0 0 0-14-3M4 15a8 8 0 0 0 14 3"/></svg>
+              </button>
+            </div>
+            <div class="meter" data-meter-for="new_password"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="field">
+            <label for="confirm_password">Yangi parolni takrorlang</label>
+            <input class="input" id="confirm_password" name="confirm_password" type="password"
+                   autocomplete="new-password" required minlength="10">
+          </div>
+          <button class="btn btn-primary" type="submit">Parolni saqlash</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Avtomatik tozalash</h2>
+          <div class="sub">Faolsiz hisoblar bilan nima bo'ladi</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div><dt>{{ disable_days }} kun faolsiz</dt><dd>Hisob bloklanadi</dd></div>
+          <div><dt>{{ delete_days }} kun faolsiz</dt><dd>Hisob butunlay o'chiriladi</dd></div>
+          <div><dt>Tekshirish davri</dt><dd>Har soatda</dd></div>
+        </dl>
+        <p style="margin:14px 0;color:var(--text-3);font-size:12.5px">
+          Muddatlarni <code class="mono">INACTIVE_DISABLE_DAYS</code> va
+          <code class="mono">INACTIVE_DELETE_DAYS</code> o'zgaruvchilari orqali sozlash mumkin.
+          Hozir ulangan foydalanuvchi hech qachon bloklanmaydi.
+        </p>
+        <form method="post" action="{{ url_for('run_cleanup') }}"
+              data-confirm-title="Tozalashni ishga tushirish"
+              data-confirm="Faolsiz hisoblar hoziroq tekshiriladi: {{ disable_days }} kundan oshganlar bloklanadi, {{ delete_days }} kundan oshganlar o'chiriladi.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn" type="submit">Hozir tekshirish</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-top:0">
+      <div class="card-head"><h2>Xavfsizlik holati</h2></div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div>
+            <dt>Ulanish shifrlangan (HTTPS)</dt>
+            <dd>{% if https %}<span class="badge solid">Ha</span>{% else %}<span class="badge warn">Yo'q</span>{% endif %}</dd>
+          </div>
+          <div>
+            <dt>Cookie Secure bayrog'i</dt>
+            <dd><span class="badge muted mono">{{ secure_cookies }}</span></dd>
+          </div>
+          <div>
+            <dt>Boshlang'ich parol almashtirilgan</dt>
+            <dd>{% if admin.must_change %}<span class="badge warn">Yo'q</span>{% else %}<span class="badge">Ha</span>{% endif %}</dd>
+          </div>
+          <div><dt>VPN parollari</dt><dd><span class="badge">pbkdf2-sha256</span></dd></div>
+          <div><dt>CSRF himoyasi</dt><dd><span class="badge">Yoqilgan</span></dd></div>
+          <div><dt>Login urinishlari chegarasi</dt><dd>15 daqiqada 5 marta</dd></div>
+        </dl>
+        {% if not https %}
+        <p style="margin-top:14px;color:var(--text-3);font-size:12.5px">
+          Panel HTTP orqali ochilyapti — admin paroli tarmoqda ochiq ketadi.
+          Reverse-proxy'da HTTPS yoqing va <code class="mono">SECURE_COOKIES=1</code> qo'ying.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Server</h2></div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div><dt>Holat</dt><dd>{% if info.online %}<span class="badge solid">Ishlayapti</span>{% else %}<span class="badge warn">Javob bermayapti</span>{% endif %}</dd></div>
+          <div><dt>Tashqi manzil</dt><dd class="mono">{{ server_ip or '—' }}</dd></div>
+          <div><dt>Port / protokol</dt><dd class="mono">{{ info.port or 1194 }}/{{ info.proto or 'udp' }}</dd></div>
+          <div><dt>DCO tezlashtirish</dt><dd>{% if info.dco == 'on' %}<span class="badge solid">Yoqilgan</span>{% else %}<span class="badge muted">O'chiq</span>{% endif %}</dd></div>
+          <div><dt>MSS chegarasi</dt><dd class="mono">{{ info.mssfix or 1360 }}</dd></div>
+          <div><dt>Maksimal klient</dt><dd class="num">{{ info.max_clients or 100 }}</dd></div>
+          {% if ca %}
+          <div><dt>CA muddati</dt><dd class="num">{{ ca.expires|dt }} ({{ ca.days_left }} kun)</dd></div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

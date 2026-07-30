@@ -1,0 +1,30 @@
+# OpenVPN 2.7 kerak: faqat u yadroning in-tree `ovpn` moduli bilan DCO
+# (Data Channel Offload) ni qo'llab-quvvatlaydi. DCO da shifrlash yadro ichida
+# bajariladi — user-space ga nusxalash yo'qoladi va o'tkazuvchanlik bir necha
+# barobar oshadi.
+#
+# Barqaror alpine teglarida hozircha 2.6.20 turibdi va u DCO'siz yig'ilgan
+# (enable_dco='no'). Barqaror tegda 2.7 paydo bo'lgach BASE ni almashtirish kifoya:
+#   docker compose build --build-arg BASE=alpine:3.24 openvpn
+ARG BASE=alpine:edge
+FROM ${BASE}
+
+RUN apk add --no-cache \
+        openvpn \
+        easy-rsa \
+        bash \
+        iptables \
+        openssl \
+        python3 \
+ # DCO haqiqatan yig'ilganini build vaqtida tekshiramiz — aks holda konteyner
+ # jimgina sekin rejimda ishlab ketaveradi va buni sezmay qolasiz.
+ && { openvpn --version | grep -q '\[DCO\]' \
+      || { echo "XATO: paketda DCO yo'q:"; openvpn --version | head -1; exit 1; }; }
+
+COPY scripts/ /opt/vpn-scripts/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh /opt/vpn-scripts/*.py
+
+EXPOSE 1194/udp
+
+ENTRYPOINT ["/entrypoint.sh"]

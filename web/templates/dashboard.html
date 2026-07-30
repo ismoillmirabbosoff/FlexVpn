@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Boshqaruv paneli — VPN Panel{% endblock %}
+
+{% block content %}
+<div data-live data-history='{{ history|tojson }}'></div>
+
+<div class="page-head">
+  <div>
+    <h1>Boshqaruv paneli</h1>
+    <p>Server holati va jonli ulanishlar &middot; har 5 soniyada yangilanadi</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{ url_for('activity') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Faoliyat tarixi
+    </a>
+    <a class="btn btn-primary" href="{{ url_for('users_page') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Foydalanuvchi qo'shish
+    </a>
+  </div>
+</div>
+
+{% if not server_ip_set %}
+<div class="flash error" style="margin-bottom:18px">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+  <span><b>SERVER_IP kiritilmagan.</b> Yaratilayotgan .ovpn fayllarda server manzili bo'lmaydi — <code class="mono">docker-compose.yml</code> dagi <code class="mono">SERVER_IP</code> ni to'ldiring.</span>
+</div>
+{% endif %}
+
+<div class="grid grid-stats">
+  <div class="tile">
+    <div class="label">Hozir ulangan</div>
+    <div class="value num"><span data-bind="stats.online">{{ stats.online }}</span><span class="unit">/ {{ stats.total }}</span></div>
+    <div class="foot">{{ 'Faol sessiyalar' if stats.online else 'Ulanish yo‘q' }}</div>
+    <div class="corner"><span class="dot {{ 'pulse' if stats.online }}"></span></div>
+  </div>
+
+  <div class="tile">
+    <div class="label">Yuklab olish</div>
+    <div class="value num" data-bind="throughput.down" data-format="bits">{{ throughput.down|fbits }}</div>
+    <div class="foot"><span data-chart-peak>Cho'qqi —</span></div>
+  </div>
+
+  <div class="tile">
+    <div class="label">Yuklash</div>
+    <div class="value num" data-bind="throughput.up" data-format="bits">{{ throughput.up|fbits }}</div>
+    <div class="foot">Klientlardan serverga</div>
+  </div>
+
+  <div class="tile">
+    <div class="label">Bugungi trafik</div>
+    <div class="value num" data-bind="traffic.today" data-format="bytes">{{ traffic.today|fbytes }}</div>
+    <div class="foot">Jami: {{ traffic.total|fbytes }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div>
+      <h2>O'tkazuvchanlik</h2>
+      <div class="sub">So'nggi 15 daqiqa</div>
+    </div>
+    <div class="chart-legend">
+      <span><i class="legend-key"></i> Yuklab olish</span>
+      <span style="color:var(--text-3)"><i class="legend-key dashed"></i> Yuklash</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="chart"><svg data-chart preserveAspectRatio="none"></svg></div>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-top:18px">
+  <div class="card" style="margin-top:0">
+    <div class="card-head">
+      <div>
+        <h2>Ulangan foydalanuvchilar</h2>
+        <div class="sub">Jonli tezlik va sessiya davomiyligi</div>
+      </div>
+    </div>
+    <div class="card-body tight">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Foydalanuvchi</th>
+              <th>IP manzil</th>
+              <th>Davomiyligi</th>
+              <th class="right">Tezlik &darr; &middot; &uarr;</th>
+              <th class="right">Trafik</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-clients-body>
+            {% for client in clients %}
+            <tr>
+              <td>
+                <div class="user-cell">
+                  <div class="avatar">{{ client.name[0]|upper }}</div>
+                  <div class="meta">
+                    <div class="name">{{ client.name }}</div>
+                    <div class="sub mono">{{ client.vpn_address or '—' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="mono">{{ client.real_address.split(':')[0] }}</td>
+              <td class="num">{{ (now - client.connected_since)|dur }}</td>
+              <td class="right num">{{ client.down_bps|fbits }} &middot; {{ client.up_bps|fbits }}</td>
+              <td class="right num">{{ (client.bytes_received + client.bytes_sent)|fbytes }}</td>
+              <td class="actions">
+                <form method="post" action="{{ url_for('disconnect_user', username=client.name) }}"
+                      data-confirm="{{ client.name }} ulanishi uziladi.">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-sm btn-quiet" type="submit">Uzish</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <p>Hozircha hech kim ulanmagan</p>
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-top:0">
+      <div class="card-head"><h2>Server holati</h2></div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div>
+            <dt>Holat</dt>
+            <dd>
+              {% if info.online %}
+                <span class="badge solid"><span class="dot"></span>Ishlayapti</span>
+              {% else %}
+                <span class="badge"><span class="dot hollow"></span>Javob bermayapti</span>
+              {% endif %}
+            </dd>
+          </div>
+          {% if info.uptime %}
+          <div><dt>Ish vaqti</dt><dd class="num">{{ info.uptime|dur }}</dd></div>
+          {% endif %}
+          <div><dt>Manzil</dt><dd class="mono">{{ server_ip or '—' }}:{{ info.port or 1194 }}/{{ info.proto or 'udp' }}</dd></div>
+          <div><dt>Shifrlash</dt><dd class="mono">{{ info.cipher or 'AES-256-GCM' }}</dd></div>
+          <div><dt>Tarmoq</dt><dd class="mono">{{ info.subnet or '10.8.0.0/24' }}</dd></div>
+          <div><dt>DNS</dt><dd class="mono">{{ (info.dns or ['—'])|join(', ') }}</dd></div>
+          <div>
+            <dt>MTU / MSS</dt>
+            <dd class="mono">
+              {{ info.tun_mtu or 1420 }} / {{ info.mssfix or 1360 }}
+              {% if info.tun_mtu and info.tun_mtu >= 1500 %}
+                <span class="badge warn" title="Fragmentatsiya tezlikni tushiradi">Yuqori</span>
+              {% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>Tezlashtirish (DCO)</dt>
+            <dd>
+              {% if info.dco == 'on' %}
+                <span class="badge solid">Yoqilgan</span>
+              {% else %}
+                <span class="badge muted" {% if info.dco_reason %}title="{{ info.dco_reason }}"{% endif %}>O'chiq</span>
+              {% endif %}
+            </dd>
+          </div>
+          {% if info.version %}
+          <div><dt>OpenVPN</dt><dd class="mono">{{ info.version }}</dd></div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Tekshiruvlar</h2></div>
+      <div class="card-body">
+        <dl class="info-list">
+          <div>
+            <dt>VPN xizmati</dt>
+            <dd>{% if info.online %}<span class="badge">Yaxshi</span>{% else %}<span class="badge warn">Diqqat</span>{% endif %}</dd>
+          </div>
+          <div>
+            <dt>CA sertifikati</dt>
+            <dd>
+              {% if ca %}
+                {% if ca.days_left > 90 %}<span class="badge">{{ ca.days_left }} kun qoldi</span>
+                {% else %}<span class="badge warn">{{ ca.days_left }} kun qoldi</span>{% endif %}
+              {% else %}<span class="badge muted">—</span>{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>Bloklangan hisoblar</dt>
+            <dd>{{ stats.blocked }} ta</dd>
+          </div>
+          <div>
+            <dt>Tez orada bloklanadi</dt>
+            <dd>
+              {% if stats.expiring %}
+                <a class="badge warn" href="{{ url_for('users_page') }}">{{ stats.expiring }} ta &rarr;</a>
+              {% else %}<span class="badge muted">Yo'q</span>{% endif %}
+            </dd>
+          </div>
+        </dl>
+        {% if info.dco != 'on' %}
+        <p style="margin-top:14px;color:var(--text-3);font-size:12.5px">
+          Tezlikni yana oshirish uchun hostda <code class="mono">ovpn-dco</code> yadro modulini
+          yoqing — shifrlash yadro darajasida bajariladi va o'tkazuvchanlik sezilarli oshadi.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <div class="card-head">
+    <div>
+      <h2>So'nggi ulanishlar</h2>
+      <div class="sub">Ulanish va uzilish hodisalari</div>
+    </div>
+    <a class="btn btn-sm btn-quiet" href="{{ url_for('activity') }}">Barchasi</a>
+  </div>
+  <div class="card-body tight">
+    <ul class="timeline">
+      {% for event in sessions %}
+      <li>
+        <div class="tl-icon">
+          {% if event.event == 'connect' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          {% endif %}
+        </div>
+        <div class="tl-body">
+          <div class="tl-title"><b>{{ event.user }}</b> {{ 'ulandi' if event.event == 'connect' else 'uzildi' }}</div>
+          <div class="tl-meta">
+            {{ event.real_ip or '—' }}
+            {%- if event.event == 'disconnect' %} &middot; {{ event.duration|dur }} &middot;
+              {{ (event.get('bytes_received', 0) + event.get('bytes_sent', 0))|fbytes }}
+            {%- endif %}
+          </div>
+        </div>
+        <div class="tl-time">{{ event.ts|ago }}</div>
+      </li>
+      {% else %}
+      <li><div class="empty" style="width:100%"><p>Hali ulanishlar qayd etilmagan</p></div></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

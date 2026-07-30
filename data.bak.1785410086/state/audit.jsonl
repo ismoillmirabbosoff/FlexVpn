@@ -1,0 +1,31 @@
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "axrorgulomovv", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "IboxAlisher", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "Ismail", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "Khasanaka", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "muhammadjonSaidov", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "normurod", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "rustamtoshpulatov", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "shahzod", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "sherzod", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325326, "action": "password_hashed", "actor": "system", "target": "ulugbek", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325639, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325639, "action": "login", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325639, "action": "admin_password_change", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325661, "action": "login", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325696, "action": "login", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325696, "action": "user_add", "actor": "admin", "target": "testuser", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325696, "action": "config_download", "actor": "admin", "target": "testuser", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325700, "action": "user_disable", "actor": "admin", "target": "testuser", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325700, "action": "user_enable", "actor": "admin", "target": "testuser", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325704, "action": "user_delete", "actor": "admin", "target": "testuser", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325743, "action": "auto_disable", "actor": "system", "target": "sherzod", "detail": "40 kun faolsiz", "ip": ""}
+{"ts": 1785325747, "action": "auto_delete", "actor": "system", "target": "sherzod", "detail": "50 kun faolsiz", "ip": ""}
+{"ts": 1785325768, "action": "password_hashed", "actor": "system", "target": "sherzod", "detail": "ochiq matndan pbkdf2 ga o'tkazildi", "ip": ""}
+{"ts": 1785325790, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325790, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325790, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325790, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325790, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325831, "action": "login", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785325856, "action": "login", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
+{"ts": 1785407779, "action": "login_failed", "actor": "admin", "target": "", "detail": "", "ip": "172.24.0.1"}
