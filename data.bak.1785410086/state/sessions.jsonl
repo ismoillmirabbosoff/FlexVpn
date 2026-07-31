@@ -1,2 +1,0 @@
-{"event": "connect", "user": "Ismail", "ts": 1785325743, "real_ip": "203.0.113.9", "vpn_ip": "10.8.0.5"}
-{"event": "disconnect", "user": "Ismail", "ts": 1785325743, "real_ip": "203.0.113.9", "vpn_ip": "", "duration": 3600, "bytes_received": 52428800, "bytes_sent": 10485760}

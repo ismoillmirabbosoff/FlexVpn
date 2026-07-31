@@ -15,18 +15,14 @@ services:
       - ./data/users:/etc/openvpn/users
       - ./data/state:/etc/openvpn/state
     environment:
-      # Web konteyner shu uid/gid bilan ishlaydi — state fayllari o'sha egaga beriladi.
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - VPN_PORT=1194
       - VPN_PROTO=udp
       - VPN_DNS1=${VPN_DNS1:-1.1.1.1}
       - VPN_DNS2=${VPN_DNS2:-8.8.8.8}
-      # auto = hostda ovpn yadro moduli bo'lsa DCO yoqiladi (o'tkazuvchanlik keskin oshadi).
       - VPN_DCO=${VPN_DCO:-auto}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
-      # Tunnel MTU. 1500 QO'YMANG — fragmentatsiya tezlikni tushiradi va uzun
-      # ulanishlarni uzadi. PPPoE/mobil internetda 1400 gacha tushiring.
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
     restart: unless-stopped
     sysctls:
@@ -42,8 +38,6 @@ services:
       context: .
       dockerfile: Dockerfile.web
     container_name: vpn-web-panel
-    # Panel to'g'ridan-to'g'ri internetga chiqmaydi — oldida o'zingizning
-    # reverse-proxy'ingiz (nginx / Caddy / Cloudflare) turadi.
     ports:
       - "127.0.0.1:8080:8080"
     user: "${PUID:-1000}:${PGID:-1000}"
@@ -53,19 +47,13 @@ services:
       - ./data/ovpn:/app/ovpn
     environment:
       - ADMIN_USER=${ADMIN_USER:-admin}
-      # Bo'sh qoldirilsa, birinchi ishga tushishda tasodifiy parol yaratiladi va
-      # konteyner logiga chiqariladi: docker compose logs web
       - ADMIN_PASS=${ADMIN_PASS:-}
-      # Bo'sh qoldirilsa, doimiy kalit avtomatik yaratilib data/state ichida saqlanadi.
       - SECRET_KEY=${SECRET_KEY:-}
       - SERVER_IP=${SERVER_IP:-157.22.128.192}
       - VPN_PORT=1194
       - VPN_PROTO=udp
-      # openvpn xizmatidagi qiymatlar bilan bir xil bo'lishi shart — bular
-      # yaratiladigan .ovpn fayllariga tushadi.
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
-      # HTTPS ortida ishlaganda 1 ga qo'ying. auto = so'rov protokoliga qarab aniqlanadi.
       - SECURE_COOKIES=${SECURE_COOKIES:-auto}
       - TRUST_PROXY=${TRUST_PROXY:-1}
       - INACTIVE_DISABLE_DAYS=${INACTIVE_DISABLE_DAYS:-30}
