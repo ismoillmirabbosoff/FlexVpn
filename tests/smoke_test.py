@@ -152,7 +152,15 @@ def test_auth() -> None:
     check("noto'g'ri parol rad etiladi", not bad.login("admin", "butunlay-notogri-parol"))
 
     c = Client()
-    check("to'g'ri parol bilan kirish", c.login("admin", PW))
+    check(".env dagi ADMIN_PASS bilan kirish", c.login("admin", PW))
+
+    # .env dagi parol qanday bo'lishidan qat'i nazar panel cheklanmasligi kerak.
+    admin_file = os.path.join(ROOT, "data/state/admin.json")
+    if os.path.exists(admin_file):
+        admin = json.load(open(admin_file))
+        check(".env paroli bilan panel cheklanmagan", admin.get("must_change") is False,
+              f"must_change={admin.get('must_change')}")
+        check(".env izi saqlangan", "env_fingerprint" in admin)
     return c
 
 

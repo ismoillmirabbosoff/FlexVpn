@@ -56,28 +56,49 @@ def load_secret_key() -> str:
 # ---------------------------------------------------------------- admin hisobi
 
 
+def env_password_warning(raw_password: str) -> str | None:
+    """ADMIN_PASS zaif bo'lsa ogohlantirish matni, aks holda None.
+
+    Bu faqat ogohlantirish: .env ni admin ataylab to'ldiradi, shuning uchun
+    qiymat qanday bo'lishidan qat'i nazar qo'llanadi. Panel orqali qo'yiladigan
+    parolga esa qat'iy talablar saqlanib qoladi.
+    """
+    if raw_password.lower() in WEAK_DEFAULTS:
+        return "juda ommabop parol"
+    return password_problem(raw_password)
+
+
 def _default_admin() -> dict:
     username = (os.environ.get("ADMIN_USER") or "admin").strip() or "admin"
     raw_password = os.environ.get("ADMIN_PASS") or ""
-    weak = (
-        not raw_password
-        or raw_password.lower() in WEAK_DEFAULTS
-        or password_problem(raw_password) is not None
-    )
-    if weak:
-        # Boshlang'ich parolni tasodifiy qilamiz va birinchi kirishda almashtirishni talab qilamiz.
+
+    if raw_password:
+        # .env da parol berilgan — u har doim ishlaydi. Zaif bo'lsa faqat
+        # ogohlantiramiz va panelga kirishni cheklamaymiz.
+        warning = env_password_warning(raw_password)
+        if warning:
+            print(
+                "\n" + "=" * 66
+                + f"\n  OGOHLANTIRISH: ADMIN_PASS zaif ({warning}).\n"
+                + "  Parol baribir qo'llandi, chunki u .env da aniq ko'rsatilgan.\n"
+                + "  Panelni internetga chiqarsangiz kuchliroq parol qo'ying.\n"
+                + "=" * 66 + "\n",
+                flush=True,
+            )
+        must_change = False
+    else:
+        # ADMIN_PASS umuman berilmagan — tasodifiy parol yaratamiz va birinchi
+        # kirishdan keyin almashtirishni talab qilamiz.
         raw_password = secrets.token_urlsafe(12)
         print(
             "\n" + "=" * 66
-            + f"\n  DIQQAT: ADMIN_PASS o'rnatilmagan yoki juda zaif.\n"
+            + "\n  DIQQAT: ADMIN_PASS o'rnatilmagan.\n"
             + f"  Vaqtinchalik parol: {raw_password}\n"
             + "  Birinchi kirishdan keyin panel parolni almashtirishni talab qiladi.\n"
             + "=" * 66 + "\n",
             flush=True,
         )
         must_change = True
-    else:
-        must_change = False
 
     return {
         "username": username,
@@ -127,8 +148,6 @@ def sync_admin_from_env() -> str | None:
     raw_password = os.environ.get("ADMIN_PASS") or ""
     if not raw_password:
         return None
-    if raw_password.lower() in WEAK_DEFAULTS or password_problem(raw_password) is not None:
-        return "ADMIN_PASS juda zaif — e'tiborsiz qoldirildi"
 
     admin = load_admin()
     fingerprint = _env_fingerprint(raw_password)
@@ -137,9 +156,18 @@ def sync_admin_from_env() -> str | None:
 
     admin["password"] = hash_password(raw_password, ITERATIONS)
     admin["username"] = (os.environ.get("ADMIN_USER") or "admin").strip() or "admin"
+    # .env dagi parol qo'yilgach panelni cheklab turishning ma'nosi yo'q.
     admin["must_change"] = False
     admin["env_fingerprint"] = fingerprint
     save_admin(admin)
+
+    warning = env_password_warning(raw_password)
+    if warning:
+        return (
+            f"ADMIN_PASS .env dan qo'llandi (ogohlantirish: {warning}; "
+            f"konteynerga yetib kelgan uzunlik {len(raw_password)} belgi — "
+            "agar bu .env dagidan farq qilsa, parolda $ yoki # bor)"
+        )
     return "ADMIN_PASS .env dan qo'llandi"
 
 
