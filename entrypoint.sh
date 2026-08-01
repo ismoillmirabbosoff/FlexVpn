@@ -232,4 +232,31 @@ add_rule filter FORWARD -i "$DEFAULT_IF" -o tun0 -m state --state RELATED,ESTABL
 add_rule mangle FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 
 echo "=== OpenVPN ishga tushmoqda ($VPN_PROTO/$VPN_PORT, DCO=$DCO_STATE) ==="
-exec openvpn $DCO_FLAG --config "$OVPN_DIR/server.conf"
+
+# DCO o'chiq bo'lsa qo'shimcha murakkablik kerak emas.
+if [ "$DCO_STATE" != "on" ]; then
+    exec openvpn $DCO_FLAG --config "$OVPN_DIR/server.conf"
+fi
+
+# DCO yoqilgan: yadro moduli hostda bor, lekin konteyner netns ichida ishlamay
+# qolishi mumkin (netlink ruxsatlari, eski docker/seccomp profillari va h.k.).
+# Bunda konteyner cheksiz qayta yiqilib turmasin — bir marta sinaymiz va
+# muvaffaqiyatsiz bo'lsa DCO'siz davom etamiz. VPN har holda ishlab turadi.
+openvpn --config "$OVPN_DIR/server.conf" &
+OVPN_PID=$!
+
+# Signallarni bolaga uzatamiz, aks holda `docker stop` 10 soniya kutadi.
+trap 'kill -TERM "$OVPN_PID" 2>/dev/null' TERM INT
+
+sleep 6
+if kill -0 "$OVPN_PID" 2>/dev/null; then
+    wait "$OVPN_PID"
+    exit $?
+fi
+
+wait "$OVPN_PID" 2>/dev/null
+echo "!!! DCO bilan ishga tushib bo'lmadi — DCO'siz qayta urinilmoqda"
+echo "=== DCO: o'chiq — konteyner ichida ishlamadi (VPN oddiy rejimda davom etadi) ==="
+sed -i 's/"dco": "on"/"dco": "off"/; s/"dco_reason": ""/"dco_reason": "konteyner ichida ishga tushmadi"/' \
+    "$STATE_DIR/server_info.json" 2>/dev/null || true
+exec openvpn --disable-dco --config "$OVPN_DIR/server.conf"
