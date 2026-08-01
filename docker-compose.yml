@@ -49,7 +49,9 @@ services:
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASS=${ADMIN_PASS:-}
       - SECRET_KEY=${SECRET_KEY:-}
-      - SERVER_IP=${SERVER_IP:-157.22.128.192}
+      # Standart qiymat ataylab yo'q: noto'g'ri IP jimgina .ovpn ichiga tushib
+      # ketgandan ko'ra, umuman ko'rsatilmagani bilinib turgani yaxshiroq.
+      - SERVER_IP=${SERVER_IP:?SERVER_IP .env da ko'rsatilishi shart (klientlar ulanadigan tashqi IP yoki domen)}
       - VPN_PORT=1194
       - VPN_PROTO=udp
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}

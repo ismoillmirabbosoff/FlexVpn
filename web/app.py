@@ -39,7 +39,12 @@ VPN_MSSFIX = os.environ.get("VPN_MSSFIX", "1360")
 # birinchi qatoriga yoziladi va yuklab olishda tekshiriladi — eski shablon bilan
 # yaratilgan fayllar avtomatik qayta generatsiya qilinadi. Aks holda mavjud
 # foydalanuvchilar MTU kabi tuzatishlarni umuman olmay qoladi.
-OVPN_TEMPLATE_MARK = f"vpnpanel-profile v2 mtu={VPN_TUN_MTU} mss={VPN_MSSFIX}"
+# Server manzili ham izga kiradi: SERVER_IP o'zgarganda eski profillar eski
+# manzil bilan qolib ketmasin (klient butunlay boshqa serverga ulanmasin).
+OVPN_TEMPLATE_MARK = (
+    f"vpnpanel-profile v3 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
+    f"mtu={VPN_TUN_MTU} mss={VPN_MSSFIX}"
+)
 SECURE_COOKIES = (os.environ.get("SECURE_COOKIES") or "auto").lower()
 TRUST_PROXY = int(os.environ.get("TRUST_PROXY", "1"))
 SESSION_IDLE_TIMEOUT = int(os.environ.get("SESSION_IDLE_TIMEOUT", "3600"))
