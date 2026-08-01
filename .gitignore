@@ -1,0 +1,8 @@
+
+# Ish holati: PKI kalitlari, sertifikatlar, foydalanuvchi parollari,
+# sessiya kaliti, .ovpn profillari.
+data/
+data.bak.*/
+
+__pycache__/
+*.py[cod]

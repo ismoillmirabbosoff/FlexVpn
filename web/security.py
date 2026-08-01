@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import os
@@ -97,10 +98,9 @@ def load_admin() -> dict:
             except json.JSONDecodeError:
                 pass
         data = _default_admin()
-        try:
-            atomic_write(ADMIN_FILE, json.dumps(data, indent=2), mode=0o600)
-        except OSError:
-            pass
+        # Yozib bo'lmasa jim turmaymiz: aks holda har so'rovda yangi parol
+        # yaratilib, hech kim kira olmaydigan holat yuzaga keladi.
+        atomic_write(ADMIN_FILE, json.dumps(data, indent=2), mode=0o600)
         return data
 
 
@@ -108,6 +108,39 @@ def save_admin(data: dict) -> None:
     with _admin_lock:
         data["updated"] = int(time.time())
         atomic_write(ADMIN_FILE, json.dumps(data, indent=2), mode=0o600)
+
+
+def _env_fingerprint(raw_password: str) -> str:
+    """ADMIN_PASS ning izi — parolning o'zi saqlanmaydi."""
+    return hashlib.sha256(("vpnpanel-env:" + raw_password).encode()).hexdigest()
+
+
+def sync_admin_from_env() -> str | None:
+    """.env dagi ADMIN_PASS o'zgargan bo'lsa, uni qo'llaydi.
+
+    admin.json bir marta yaratilgach ADMIN_PASS butunlay e'tiborsiz qolar edi —
+    foydalanuvchi .env ni tahrirlab, hech narsa o'zgarmaganini ko'rardi.
+
+    Panel orqali almashtirilgan parol qaytarib tashlanmaydi: faqat ADMIN_PASS
+    qiymatining o'zi o'zgarganda (izi mos kelmaganda) yozib qo'yiladi.
+    """
+    raw_password = os.environ.get("ADMIN_PASS") or ""
+    if not raw_password:
+        return None
+    if raw_password.lower() in WEAK_DEFAULTS or password_problem(raw_password) is not None:
+        return "ADMIN_PASS juda zaif — e'tiborsiz qoldirildi"
+
+    admin = load_admin()
+    fingerprint = _env_fingerprint(raw_password)
+    if admin.get("env_fingerprint") == fingerprint:
+        return None  # o'zgarmagan
+
+    admin["password"] = hash_password(raw_password, ITERATIONS)
+    admin["username"] = (os.environ.get("ADMIN_USER") or "admin").strip() or "admin"
+    admin["must_change"] = False
+    admin["env_fingerprint"] = fingerprint
+    save_admin(admin)
+    return "ADMIN_PASS .env dan qo'llandi"
 
 
 def check_admin(username: str, password: str) -> bool:

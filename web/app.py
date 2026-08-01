@@ -668,7 +668,17 @@ def _migrate_legacy_users() -> None:
 
 def bootstrap() -> None:
     store.ensure_dirs()
+    try:
+        store.check_writable()
+    except RuntimeError as exc:
+        print("\n" + "=" * 66 + f"\n  ISHGA TUSHIB BO'LMADI\n\n{exc}" + "=" * 66 + "\n", flush=True)
+        raise
     security.load_admin()
+    # .env dagi ADMIN_PASS o'zgargan bo'lsa qo'llanadi (panel orqali qo'yilgan
+    # parol saqlanib qoladi — faqat env qiymatining o'zi o'zgarsa yoziladi).
+    synced = security.sync_admin_from_env()
+    if synced:
+        print(f"admin: {synced}", flush=True)
     _migrate_legacy_users()
     monitor.start_background()
     if not SERVER_IP:

@@ -40,6 +40,35 @@ def ensure_dirs() -> None:
             pass
 
 
+def check_writable() -> None:
+    """Kataloglar yozilishini tekshiradi va bo'lmasa aniq xato bilan to'xtaydi.
+
+    Docker bind-mount manbasi hostda mavjud bo'lmasa, uni root nomidan yaratadi.
+    Konteyner esa PUID:PGID bilan ishlaydi va hech narsa yoza olmaydi. Ilgari bu
+    jimgina yutilardi: parol almashtirilgandek ko'rinardi, lekin saqlanmasdi va
+    ADMIN_PASS ham qo'llanmasdi. Endi darhol va tushunarli tarzda to'xtaymiz.
+    """
+    broken = []
+    for path in (STATE_DIR, LASTSEEN_DIR, DISABLED_DIR, OVPN_DIR):
+        probe = os.path.join(path, ".write-probe")
+        try:
+            with open(probe, "w", encoding="utf-8") as fh:
+                fh.write("ok")
+            os.unlink(probe)
+        except OSError as exc:
+            broken.append(f"{path} ({exc.strerror})")
+
+    if broken:
+        uid, gid = os.getuid(), os.getgid()
+        raise RuntimeError(
+            "Quyidagi kataloglarga yozib bo'lmadi:\n  - "
+            + "\n  - ".join(broken)
+            + f"\n\nKonteyner {uid}:{gid} bilan ishlayapti. Hostda tuzating:\n"
+            + f"    sudo chown -R {uid}:{gid} ./data\n"
+            + "    docker compose restart\n"
+        )
+
+
 def atomic_write(path: str, content: str, mode: int = 0o640) -> None:
     tmp = f"{path}.tmp.{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as fh:
