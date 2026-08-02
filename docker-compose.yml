@@ -24,6 +24,8 @@ services:
       - VPN_DCO=${VPN_DCO:-auto}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
+      # 1 = bitta hisob bir nechta qurilmada ishlaydi (telefon + noutbuk).
+      - VPN_DUPLICATE_CN=${VPN_DUPLICATE_CN:-1}
     restart: unless-stopped
     sysctls:
       - net.ipv4.ip_forward=1
@@ -55,6 +57,8 @@ services:
       - VPN_PORT=1194
       - VPN_PROTO=udp
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
+      # 1 = bitta hisob bir nechta qurilmada ishlaydi (telefon + noutbuk).
+      - VPN_DUPLICATE_CN=${VPN_DUPLICATE_CN:-1}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
       - SECURE_COOKIES=${SECURE_COOKIES:-auto}
       - TRUST_PROXY=${TRUST_PROXY:-1}

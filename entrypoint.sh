@@ -21,6 +21,12 @@ VPN_MSSFIX="${VPN_MSSFIX:-1360}"
 # tezlik tushadi va uzun TCP oqimlari uziladi. 1420 PPPoE/ISP qo'shimchasiga ham
 # joy qoldiradi.
 VPN_TUN_MTU="${VPN_TUN_MTU:-1420}"
+
+# Bitta hisob bilan bir nechta qurilmadan (telefon + noutbuk) ulanish.
+# 0 bo'lsa: ikkinchi ulanish birinchisini uzib tashlaydi va ikki qurilma
+# navbatma-navbat bir-birini uzib turadi — logda "bad packet ID (replay)"
+# xatolari to'planadi.
+VPN_DUPLICATE_CN="${VPN_DUPLICATE_CN:-1}"
 VPN_REDIRECT_GATEWAY="${VPN_REDIRECT_GATEWAY:-1}"
 VPN_DCO="${VPN_DCO:-auto}"
 
@@ -123,6 +129,11 @@ if [ "$VPN_REDIRECT_GATEWAY" = "1" ]; then
     REDIRECT_LINE='push "redirect-gateway def1 bypass-dhcp"'
 fi
 
+DUPLICATE_LINE=""
+if [ "$VPN_DUPLICATE_CN" = "1" ]; then
+    DUPLICATE_LINE="duplicate-cn"
+fi
+
 # ------------------------------------------------------------------ server config
 cat > "$OVPN_DIR/server.conf" <<EOF
 port $VPN_PORT
@@ -171,6 +182,7 @@ client-disconnect "$SCRIPTS_DIR/session-hook.py disconnect"
 management 0.0.0.0 7505 $MGMT_PASS_FILE
 
 max-clients $VPN_MAX_CLIENTS
+$DUPLICATE_LINE
 # persist-key 2.7 da olib tashlangan — kalitlar doim saqlanadi.
 persist-tun
 status $STATE_DIR/openvpn-status.log 5

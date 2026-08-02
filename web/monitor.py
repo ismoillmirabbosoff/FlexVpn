@@ -52,9 +52,15 @@ def _parse_status(text: str) -> list[dict]:
             name = row.get("Common Name") or row.get("Username") or ""
             if not name or name == "UNDEF":
                 continue
+            real_address = row.get("Real Address", "")
+            # Bitta foydalanuvchi bir nechta qurilmadan ulanishi mumkin
+            # (duplicate-cn). Sessiyalarni ism bo'yicha kalitlasak, ular
+            # bir-birini yozib yuboradi va faqat bittasi ko'rinadi.
+            client_id = row.get("Client ID") or row.get("Peer ID") or ""
             clients.append({
                 "name": name,
-                "real_address": row.get("Real Address", ""),
+                "session": f"{name}#{client_id or real_address}",
+                "real_address": real_address,
                 "vpn_address": row.get("Virtual Address", ""),
                 "bytes_received": _int(row.get("Bytes Received")),
                 "bytes_sent": _int(row.get("Bytes Sent")),
@@ -87,9 +93,9 @@ def poll_once() -> None:
     total_down = total_up = 0.0
     seen = set()
     for client in clients:
-        name = client["name"]
-        seen.add(name)
-        prev = _prev_sample.get(name)
+        key = client["session"]
+        seen.add(key)
+        prev = _prev_sample.get(key)
         # Yangi ulanishda hisoblagich noldan boshlanadi — eski qiymat bilan
         # solishtirsak, tezlik keskin sakraydi. Shuning uchun kamayishni 0 deb olamiz.
         if prev and now > prev[0]:
@@ -102,16 +108,16 @@ def poll_once() -> None:
         client["up_bps"] = up * 8
         total_down += down * 8
         total_up += up * 8
-        _prev_sample[name] = (now, client["bytes_received"], client["bytes_sent"])
+        _prev_sample[key] = (now, client["bytes_received"], client["bytes_sent"])
 
-    for name in list(_prev_sample):
-        if name not in seen:
-            _prev_sample.pop(name, None)
+    for key in list(_prev_sample):
+        if key not in seen:
+            _prev_sample.pop(key, None)
 
     with _lock:
         _server_online = fresh
         _clients.clear()
-        _clients.update({c["name"]: c for c in clients})
+        _clients.update({c["session"]: c for c in clients})
         _history.append({"ts": int(now), "down": round(total_down), "up": round(total_up)})
         _last_poll = now
 
@@ -123,7 +129,8 @@ def live_clients() -> list[dict]:
 
 def is_online(username: str) -> bool:
     with _lock:
-        return username in _clients
+        # Kalit endi sessiya bo'yicha — ism bo'yicha qidiramiz.
+        return any(c["name"] == username for c in _clients.values())
 
 
 def server_online() -> bool:
