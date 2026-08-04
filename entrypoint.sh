@@ -165,7 +165,21 @@ push "tun-mtu $VPN_TUN_MTU"
 # Siqish VORACLE hujumiga yo'l ochadi va zamonaviy trafikda foyda bermaydi.
 allow-compression no
 
-keepalive 10 120
+# --- NAT ortidagi ko'p klient uchun barqarorlik ------------------------------
+# Ofisdagi o'nlab kompyuter bitta tashqi IP ortida turadi. Router UDP
+# moslashuvini (mapping) qayta ishlatganda klientning manba porti o'zgaradi.
+# float bo'lmasa server bunday paketlarni begona deb rad etadi va sessiya
+# uziladi — foydalanuvchi uchun bu "3 daqiqada chiqib ketdi" bo'lib ko'rinadi.
+float
+
+# Ping oralig'i NAT moslashuvini tirik ushlab turadi. 120 soniya ko'p routerlar
+# uchun juda uzun — moslashuv undan oldin yopilib qoladi.
+keepalive 10 60
+
+# Kengaytirilgan replay oynasi: yuqori kechikish va paket tartibsizligida
+# to'g'ri paketlar "replay" deb rad etilmasin.
+replay-window 512 60
+
 cipher AES-256-GCM
 data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
 auth SHA256

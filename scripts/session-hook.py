@@ -56,9 +56,62 @@ def append_session(record: dict) -> None:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _client_version(raw: str) -> tuple[int, int]:
+    """IV_VER ("2.6.9") -> (2, 6). Aniqlab bo'lmasa (0, 0) — hech narsa yubormaymiz."""
+    parts = raw.strip().split(".")
+    try:
+        return int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return (0, 0)
+
+
+def write_client_config(path: str) -> None:
+    """Shu klient uchun qo'shimcha sozlamalarni yozadi (per-client push).
+
+    Klientdagi .ovpn faylini o'zgartirmasdan sozlash imkonini beradi — bu
+    o'nlab kompyuterga tarqatilgan profillarni qayta ulashib chiqmaslik uchun
+    muhim. OpenVPN bu faylni faqat shu ulanish uchun o'qiydi.
+
+    Klient o'zi haqida IV_* o'zgaruvchilarini yuboradi, shuning uchun
+    platformaga mos sozlamani tanlay olamiz. Noto'g'ri direktiva yuborsak
+    klient ulana olmaydi, shuning uchun faqat aniq bilgan holatda yozamiz.
+    """
+    lines = []
+
+    platform = (os.environ.get("IV_PLAT") or "").strip().lower()
+    version = _client_version(os.environ.get("IV_VER") or "")
+
+    if platform == "win":
+        # Windows'da DNS sizishining oldini oladi: tunneldan tashqaridagi
+        # DNS serverlariga murojaat bloklanadi. Faqat Windows qo'llab-quvvatlaydi.
+        lines.append('push "block-outside-dns"')
+
+    # Tunnel faqat IPv4 beradi. Klientda IPv6 bo'lsa, ikki stekli saytlarga
+    # (masalan CloudFront ortidagilar) trafik IPv6 orqali tunneldan TASHQARIDA
+    # ketadi va sayt foydalanuvchining haqiqiy davlatini ko'radi.
+    # block-ipv6 OpenVPN 2.5 dan mavjud — eski klientga yuborsak u ulana olmaydi,
+    # shuning uchun versiyani tekshiramiz.
+    if version >= (2, 5):
+        lines.append('push "block-ipv6"')
+
+    if not lines:
+        return
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
 def main() -> None:
     event = sys.argv[1] if len(sys.argv) > 1 else "connect"
     username = os.environ.get("common_name") or os.environ.get("username") or ""
+
+    # OpenVPN client-connect ga oxirgi argument sifatida config fayl yo'lini
+    # beradi. Foydalanuvchi nomi noto'g'ri bo'lsa ham buni yozib qo'yamiz.
+    if event == "connect" and len(sys.argv) > 2:
+        try:
+            write_client_config(sys.argv[2])
+        except OSError as exc:
+            print(f"session-hook: client config yozilmadi: {exc}", file=sys.stderr)
 
     if not valid_username(username):
         return

@@ -42,7 +42,7 @@ VPN_MSSFIX = os.environ.get("VPN_MSSFIX", "1360")
 # Server manzili ham izga kiradi: SERVER_IP o'zgarganda eski profillar eski
 # manzil bilan qolib ketmasin (klient butunlay boshqa serverga ulanmasin).
 OVPN_TEMPLATE_MARK = (
-    f"vpnpanel-profile v3 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
+    f"vpnpanel-profile v4 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
     f"mtu={VPN_TUN_MTU} mss={VPN_MSSFIX}"
 )
 SECURE_COOKIES = (os.environ.get("SECURE_COOKIES") or "auto").lower()
@@ -629,6 +629,26 @@ tls-version-min 1.2
 auth-user-pass
 auth-nocache
 key-direction 1
+
+# --- DNS sizishiga qarshi ---------------------------------------------------
+# Server DNS manzillarini yuboradi, lekin ularni qo'llash klientga bog'liq.
+# Windows / Android / iOS / macOS ilovalari buni o'zi bajaradi.
+#
+# LINUX (systemd-resolved) da esa yuborilgan DNS E'TIBORSIZ QOLADI va barcha
+# so'rovlar provayderingizning DNS'iga ketaveradi. Natijada saytlar sizning
+# haqiqiy davlatingizni ko'radi — VPN yoqilgan bo'lsa ham.
+#
+# Linuxda tuzatish uchun:
+#   sudo apt install openvpn-systemd-resolved
+# so'ng quyidagi 4 qatordagi # belgisini olib tashlang:
+#
+#script-security 2
+#up /etc/openvpn/update-systemd-resolved
+#down /etc/openvpn/update-systemd-resolved
+#down-pre
+#dhcp-option DOMAIN-ROUTE .
+#
+# Tekshirish:  resolvectl status tun0     (DNS Servers ko'rinishi kerak)
 # Tezlik uchun: fragmentatsiyani oldini olamiz va bufferlarni OS ga qoldiramiz.
 # tun-mtu server bilan bir xil bo'lishi shart, aks holda katta paketlar yo'qoladi.
 tun-mtu {VPN_TUN_MTU}

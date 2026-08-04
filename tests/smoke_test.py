@@ -354,8 +354,14 @@ def test_vpn() -> None:
                           capture_output=True, text=True).stdout
     check("server.conf o'qildi", bool(conf.strip()))
     for needle in ("tun-mtu", "mssfix", "data-ciphers", "allow-compression no",
-                   "verify-client-cert none", "auth-user-pass-verify", "tls-version-min 1.2"):
+                   "verify-client-cert none", "auth-user-pass-verify", "tls-version-min 1.2",
+                   # NAT ortidagi ko'p klient uchun barqarorlik sozlamalari
+                   "float", "replay-window", "duplicate-cn"):
         check(f"server.conf: {needle}", needle in conf)
+
+    m = re.search(r"keepalive (\d+) (\d+)", conf)
+    check("keepalive NAT uchun yetarli qisqa",
+          bool(m) and int(m.group(2)) <= 60, m.group(0) if m else "yo'q")
 
     m = re.search(r"tun-mtu (\d+)", conf)
     check("tun-mtu < 1500 (fragmentatsiyaga qarshi)",
@@ -385,6 +391,39 @@ def test_vpn() -> None:
 
 
 # ------------------------------------------------------- 10. mustahkamlik
+def test_client_push() -> None:
+    """Klient .ovpn fayliga tegmasdan yuboriladigan sozlamalar.
+
+    O'nlab kompyuterga tarqatilgan profillarni qayta almashtirmaslik uchun
+    sozlamalar server tomondan, klient turiga qarab yuboriladi.
+    """
+    section("Klientga server tomondan yuboriladigan sozlamalar")
+    script = (
+        "import os, subprocess, tempfile, json\n"
+        "res = {}\n"
+        "for plat, ver in [('win','2.6.9'), ('linux','2.6.9'), ('win','2.4.7'), ('','')]:\n"
+        "    p = tempfile.mktemp()\n"
+        "    env = dict(os.environ, IV_PLAT=plat, IV_VER=ver, common_name='u')\n"
+        "    subprocess.run(['python3','/opt/vpn-scripts/session-hook.py','connect',p], env=env)\n"
+        "    res[f'{plat}|{ver}'] = open(p).read() if os.path.exists(p) else ''\n"
+        "print(json.dumps(res))\n"
+    )
+    r = subprocess.run(["docker", "compose", "exec", "-T", "openvpn", "python3", "-"],
+                       cwd=ROOT, input=script, capture_output=True, text=True)
+    line = [l for l in r.stdout.splitlines() if l.startswith("{")]
+    if not check("hook ishga tushdi", bool(line), r.stderr[-200:]):
+        return
+    res = json.loads(line[-1])
+    check("Windows: DNS sizishi yopiladi", "block-outside-dns" in res.get("win|2.6.9", ""))
+    check("zamonaviy klient: IPv6 sizishi yopiladi", "block-ipv6" in res.get("linux|2.6.9", ""))
+    check("Linux'ga Windows sozlamasi yuborilmaydi",
+          "block-outside-dns" not in res.get("linux|2.6.9", ""))
+    check("eski klientga (2.4) block-ipv6 yuborilmaydi",
+          "block-ipv6" not in res.get("win|2.4.7", ""),
+          "eski klient ulana olmay qolardi")
+    check("noma'lum klientga hech narsa yuborilmaydi", res.get("|", "").strip() == "")
+
+
 def test_resilience(c: Client) -> None:
     section("Mustahkamlik")
     name = "qa_persist"
@@ -459,6 +498,7 @@ def main() -> int:
     test_api(c)
     test_janitor()
     test_vpn()
+    test_client_push()
     test_resilience(c)
     test_rate_limit()
 
