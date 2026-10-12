@@ -22,6 +22,7 @@ from flask import (
 from flask.sessions import SecureCookieSessionInterface
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import awg
 import monitor
 import store
 import security
@@ -497,6 +498,30 @@ def download_config(username):
     )
 
 
+@app.route("/users/<username>/awg")
+def download_awg(username):
+    username = require_user(username)
+    if not SERVER_IP:
+        flash("SERVER_IP kiritilmagan — AmneziaWG profili yaratilmadi", "error")
+        return redirect(url_for("users_page"))
+    try:
+        config = awg.render_config(username, SERVER_IP)
+    except RuntimeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("users_page"))
+    if config is None:
+        flash("AmneziaWG server hali tayyor emas. Bir oz kuting.", "error")
+        return redirect(url_for("users_page"))
+
+    audit("config_download", target=username, detail="amneziawg")
+    response = app.response_class(config, mimetype="application/octet-stream")
+    # Windows ilovasi tunnel nomini fayl nomidan oladi (faqat harf/raqam, 32 belgigacha).
+    safe = "".join(c for c in username if c.isalnum())[:24] or "user"
+    response.headers["Content-Disposition"] = f'attachment; filename="flexvpn-{safe}.conf"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.route("/settings/password", methods=["POST"])
 def change_password():
     current = request.form.get("current_password", "")
@@ -573,6 +598,7 @@ def _user_rows() -> list[dict]:
             "username": username,
             "activity": monitor.user_activity(username),
             "has_config": os.path.exists(store.ovpn_path(username)),
+        "has_awg": os.path.exists(awg.peer_path(username)),
         })
     return rows
 

@@ -47,6 +47,9 @@ case "$VPN_PROTO" in
 esac
 
 mkdir -p "$STATE_DIR/lastseen" "$STATE_DIR/disabled" "$OVPN_DIR/users"
+# Panel (PUID) bu kataloglarga darhol yoza olsin — birinchi o'rnatishda PKI
+# yaratilishi bir necha daqiqa oladi va shu vaqt panel ishga tushmay turardi.
+chown "$PUID:$PGID" "$STATE_DIR" "$STATE_DIR/lastseen" "$STATE_DIR/disabled" 2>/dev/null || true
 
 # Netmask -> prefix (255.255.255.0 -> 24), tashqi utilitalarsiz.
 netmask_to_prefix() {

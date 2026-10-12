@@ -1,0 +1,30 @@
+# AmneziaWG server: provayder DPI'si OpenVPN'ni (UDP ham, TCP ham) aniqlab
+# bloklagani uchun. AmneziaWG — WireGuard + trafik belgilarini niqoblash.
+# Userspace (amneziawg-go) ishlatiladi: hostga yadro moduli o'rnatish shart emas.
+
+ARG AWG_GO_VERSION=v3.1.20260828
+ARG AWG_TOOLS_VERSION=v3.1.20260812
+
+FROM golang:1.25-alpine AS go-build
+ARG AWG_GO_VERSION
+RUN apk add --no-cache git \
+ && git clone --depth 1 -b "$AWG_GO_VERSION" https://github.com/amnezia-vpn/amneziawg-go /src \
+ && cd /src \
+ && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/amneziawg-go .
+
+FROM alpine:3.24 AS tools-build
+ARG AWG_TOOLS_VERSION
+RUN apk add --no-cache build-base git linux-headers \
+ && git clone --depth 1 -b "$AWG_TOOLS_VERSION" https://github.com/amnezia-vpn/amneziawg-tools /src \
+ && make -C /src/src wg \
+ && install -D -m 0755 /src/src/wg /out/awg
+
+FROM alpine:3.24
+RUN apk add --no-cache iptables iproute2 python3
+COPY --from=go-build /out/amneziawg-go /usr/bin/amneziawg-go
+COPY --from=tools-build /out/awg /usr/bin/awg
+COPY awg/ /opt/awg/
+RUN chmod +x /opt/awg/entrypoint.sh /opt/awg/sync.py
+
+EXPOSE 51443/udp
+ENTRYPOINT ["/opt/awg/entrypoint.sh"]

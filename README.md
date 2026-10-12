@@ -113,6 +113,29 @@ Faollik `data/state/lastseen/<user>` faylidan olinadi — uni OpenVPN'ning
 client-connect/disconnect hooklari yozadi. Hech qachon ulanmagan hisoblar uchun
 hisobning panelga qo'shilgan sanasi ishlatiladi.
 
+## AmneziaWG (provayder OpenVPN'ni bloklasa)
+
+Ba'zi provayderlar (masalan, Uzbektelekom) OpenVPN'ni UDP'da ham, TCP + tls-crypt'da
+ham DPI orqali aniqlab, ulanishdan ~1 daqiqa o'tib trafikni to'xtatadi. Bu server
+ichidan qilingan test bilan tasdiqlangan: server to'liq ishlaydi, paketlarni yo'lda
+provayder tashlaydi. Bunday tarmoqlar uchun yonma-yon **AmneziaWG** ishlaydi —
+WireGuard asosida, trafik belgilari niqoblangan (junk paketlar, tasodifiy
+sarlavhalar, QUIC'ga o'xshash signatura).
+
+- Server: `amneziawg` konteyneri, `udp/51443` (`.env`: `AWG_PORT`). Userspace
+  (amneziawg-go) — hostga yadro moduli kerak emas.
+- Niqoblash parametrlari va server kaliti birinchi ishga tushishda yaratiladi va
+  `data/awg/` da saqlanadi. Ularni o'chirmang — aks holda barcha profillar eskiradi.
+- Panel: har bir user qatoridagi **AWG** tugmasi `.conf` profilni beradi (kalit va IP
+  avtomatik ajratiladi, qayta yuklab olishda o'zgarmaydi).
+- Bloklash / o'chirish / 30-45 kunlik tozalash AmneziaWG'ga ham darhol ta'sir qiladi.
+
+Klientda (bir marta, bepul): **AmneziaWG** ilovasi —
+Windows: https://github.com/amnezia-vpn/amneziawg-windows-client/releases (eng so'nggi
+versiya), Android/iOS: do'konda "AmneziaWG". Ilovada "Import tunnel(s) from file" →
+paneldan olingan `.conf` → Activate. Eski versiyalar yangi parametrlarni (S3/S4,
+H-oraliqlar, I1) tushunmaydi — har doim eng so'nggisini o'rnating.
+
 ## Protokol: TCP 443 + tls-crypt
 
 Provayder DPI'si OpenVPN UDP (1194) trafigini aniqlab, ulanishdan keyin klient

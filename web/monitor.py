@@ -9,6 +9,7 @@ import threading
 import time
 from collections import deque
 
+import awg
 import store
 
 SAMPLE_INTERVAL = 5          # status fayli har 5 sekundda yangilanadi
@@ -96,6 +97,7 @@ def poll_once() -> None:
         fresh, text = False, ""
 
     clients = _parse_status(text) if fresh else []
+    clients += _awg_clients()
 
     total_down = total_up = 0.0
     seen = set()
@@ -129,6 +131,27 @@ def poll_once() -> None:
         _clients.update({c["session"]: c for c in clients})
         _history.append({"ts": int(now), "down": round(total_down), "up": round(total_up)})
         _last_poll = now
+
+
+def _awg_clients() -> list[dict]:
+    """AmneziaWG orqali ulangan userlar — OpenVPN klientlari bilan bir ro'yxatda."""
+    out = []
+    for name, p in awg.status().items():
+        if not p.get("online"):
+            continue
+        out.append({
+            "name": name,
+            "session": f"{name}#awg",
+            "cid": "",
+            "real_address": p.get("endpoint", ""),
+            "vpn_address": p.get("ip", ""),
+            # status.json server nuqtai nazaridan: rx — klientdan kelgan.
+            "bytes_received": _int(p.get("rx")),
+            "bytes_sent": _int(p.get("tx")),
+            "connected_since": _int(p.get("connected_since")) or _int(p.get("latest_handshake")),
+            "cipher": "AmneziaWG",
+        })
+    return out
 
 
 def _refresh_last_seen(clients: list[dict], now: float) -> None:
@@ -351,6 +374,7 @@ def _delete_user_files(username: str) -> None:
     for path in (
         store.user_path(username),
         store.ovpn_path(username),
+        awg.peer_path(username),
         os.path.join(store.DISABLED_DIR, username),
         os.path.join(store.LASTSEEN_DIR, username),
     ):

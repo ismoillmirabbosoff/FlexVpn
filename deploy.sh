@@ -49,12 +49,18 @@ fi
 VPN_PORT_CFG="$(grep -E '^VPN_PORT=' .env | tail -1 | cut -d= -f2 | tr -d ' "')"
 VPN_PORT_CFG="${VPN_PORT_CFG:-443}"
 if [ "${PROTO:-tcp}" = "udp" ]; then SS_FLAGS=-lunp; else SS_FLAGS=-ltnp; fi
-if command -v ss >/dev/null; then
-    holder="$(ss -H $SS_FLAGS "sport = :$VPN_PORT_CFG" 2>/dev/null | grep -v docker-proxy || true)"
+AWG_PORT_CFG="$(grep -E '^AWG_PORT=' .env | tail -1 | cut -d= -f2 | tr -d ' "')"
+AWG_PORT_CFG="${AWG_PORT_CFG:-51443}"
+port_check() {  # <ss flaglari> <port> <nom> <.env kaliti>
+    holder="$(ss -H $1 "sport = :$2" 2>/dev/null | grep -v docker-proxy || true)"
     if [ -n "$holder" ]; then
         echo "$holder"
-        die "VPN porti $VPN_PORT_CFG/${PROTO:-tcp} boshqa dastur tomonidan band. .env da VPN_PORT ni o'zgartiring. Hech narsa o'zgartirilmadi."
+        die "$3 porti $2 boshqa dastur tomonidan band. .env da $4 ni o'zgartiring. Hech narsa o'zgartirilmadi."
     fi
+}
+if command -v ss >/dev/null; then
+    port_check "$SS_FLAGS" "$VPN_PORT_CFG" "OpenVPN" VPN_PORT
+    port_check -lunp "$AWG_PORT_CFG" "AmneziaWG" AWG_PORT
 fi
 
 # ------------------------------------------------------------------- zaxira
@@ -125,7 +131,8 @@ vpn_alive() {
 }
 for _ in $(seq 1 60); do
     web=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' vpn-web-panel 2>/dev/null || echo none)
-    if vpn_alive && [ "$web" = "healthy" ]; then
+    if vpn_alive && [ "$web" = "healthy" ] \
+        && docker exec amneziawg-server awg show awg0 >/dev/null 2>&1; then
         ok=1
         break
     fi
@@ -137,5 +144,6 @@ if [ "$ok" != 1 ]; then
     docker compose logs --tail 40 openvpn
     die "servislar sog'lom holatga kelmadi. Zaxira: $BACKUP_DIR/data-$TS.tar.gz"
 fi
-docker logs openvpn-server 2>&1 | grep -E "=== DCO" | tail -1 || true
+docker logs openvpn-server 2>&1 | grep -E "=== OpenVPN" | tail -1 || true
+docker logs amneziawg-server 2>&1 | grep -E "=== AmneziaWG" | tail -1 || true
 say "Tayyor"

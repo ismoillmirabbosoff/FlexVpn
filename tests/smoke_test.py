@@ -130,7 +130,7 @@ def test_containers() -> None:
             break
         time.sleep(2)
     ps = compose("ps", "--format", "{{.Service}}={{.Status}}")
-    for svc in ("openvpn", "web"):
+    for svc in ("openvpn", "amneziawg", "web"):
         line = [l for l in ps.splitlines() if l.startswith(svc + "=")]
         check(f"{svc} ishlayapti", bool(line) and "Up" in line[0], ps[:150])
         check(f"{svc} sog'lom", bool(line) and "healthy" in line[0].lower(), line[0] if line else "")
@@ -274,9 +274,30 @@ def test_users(c: Client) -> None:
     check("config yuklab olish", code == 200 and "<ca>" in body, f"kod={code}")
     check("yuklab olish sarlavhasi", "attachment" in headers.get("Content-Disposition", ""))
 
+    # AmneziaWG profili
+    peer = os.path.join(ROOT, "data/state/awg/peers", name + ".json")
+    code, body, headers = c.raw(f"/users/{name}/awg")
+    check("AWG profil yuklab olinadi", code == 200 and "[Interface]" in body, f"kod={code}")
+    for needle in ("PrivateKey", "Address = 10.9.0.", "Jc = ", "S4 = ", "H4 = ", "I1 = ",
+                   "Endpoint = ", "AllowedIPs = 0.0.0.0/0, ::/0", "PersistentKeepalive"):
+        check(f"AWG profil: {needle.strip()}", needle in body)
+    check("AWG fayl nomi .conf", ".conf" in headers.get("Content-Disposition", ""))
+    code2, body2, _ = c.raw(f"/users/{name}/awg")
+    check("AWG profil barqaror (qayta yuklashda kalit o'zgarmaydi)", body2 == body)
+    check("AWG peer yozuvi yaratildi", os.path.exists(peer))
+    in_server = False
+    for _ in range(10):
+        peers = compose("exec", "-T", "amneziawg", "awg", "show", "awg0", "allowed-ips")
+        if re.search(r"10\.9\.0\.\d+/32", peers):
+            in_server = True
+            break
+        time.sleep(1)
+    check("AWG peer serverga qo'shildi", in_server, peers[:200])
+
     c.post(f"/users/{name}/delete", {})
     check("o'chirish", not os.path.exists(os.path.join(users_dir, name)))
     check(".ovpn ham o'chdi", not os.path.exists(ovpn))
+    check("AWG peer ham o'chdi", not os.path.exists(peer))
 
 
 # ------------------------------------------------------------------- 7. API
