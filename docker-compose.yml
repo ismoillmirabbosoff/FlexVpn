@@ -22,7 +22,8 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     ports:
-      - "1194:1194/udp"
+      # TCP 443: provayder OpenVPN UDP ni bloklagani uchun (.env: VPN_PORT, VPN_PROTO).
+      - "${VPN_PORT:-443}:${VPN_PORT:-443}/${VPN_PROTO:-tcp}"
     volumes:
       - ./data/config:/etc/openvpn
       - ./data/users:/etc/openvpn/users
@@ -30,11 +31,11 @@ services:
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      - VPN_PORT=1194
-      - VPN_PROTO=udp
+      - VPN_PORT=${VPN_PORT:-443}
+      - VPN_PROTO=${VPN_PROTO:-tcp}
       - VPN_DNS1=${VPN_DNS1:-1.1.1.1}
       - VPN_DNS2=${VPN_DNS2:-8.8.8.8}
-      - VPN_DCO=${VPN_DCO:-auto}
+      - VPN_DCO=${VPN_DCO:-0}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
       - VPN_MAX_CLIENTS=${VPN_MAX_CLIENTS:-250}
@@ -71,8 +72,8 @@ services:
       # Standart qiymat ataylab yo'q: noto'g'ri IP jimgina .ovpn ichiga tushib
       # ketgandan ko'ra, umuman ko'rsatilmagani bilinib turgani yaxshiroq.
       - SERVER_IP=${SERVER_IP:?SERVER_IP .env da ko'rsatilishi shart (klientlar ulanadigan tashqi IP yoki domen)}
-      - VPN_PORT=1194
-      - VPN_PROTO=udp
+      - VPN_PORT=${VPN_PORT:-443}
+      - VPN_PROTO=${VPN_PROTO:-tcp}
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
       # 1 = bitta hisob bir nechta qurilmada ishlaydi (telefon + noutbuk).
       - VPN_DUPLICATE_CN=${VPN_DUPLICATE_CN:-1}

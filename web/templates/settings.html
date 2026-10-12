@@ -121,7 +121,7 @@
         <dl class="info-list">
           <div><dt>Holat</dt><dd>{% if info.online %}<span class="badge solid">Ishlayapti</span>{% else %}<span class="badge warn">Javob bermayapti</span>{% endif %}</dd></div>
           <div><dt>Tashqi manzil</dt><dd class="mono">{{ server_ip or '—' }}</dd></div>
-          <div><dt>Port / protokol</dt><dd class="mono">{{ info.port or 1194 }}/{{ info.proto or 'udp' }}</dd></div>
+          <div><dt>Port / protokol</dt><dd class="mono">{{ info.port or 443 }}/{{ info.proto or 'tcp' }}</dd></div>
           <div><dt>DCO tezlashtirish</dt><dd>{% if info.dco == 'on' %}<span class="badge solid">Yoqilgan</span>{% else %}<span class="badge muted">O'chiq</span>{% endif %}</dd></div>
           <div><dt>MSS chegarasi</dt><dd class="mono">{{ info.mssfix or 1360 }}</dd></div>
           <div><dt>Maksimal klient</dt><dd class="num">{{ info.max_clients or 100 }}</dd></div>

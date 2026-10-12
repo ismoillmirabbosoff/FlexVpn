@@ -17,6 +17,6 @@ COPY scripts/ /opt/vpn-scripts/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh /opt/vpn-scripts/*.py
 
-EXPOSE 1194/udp
+EXPOSE 443/tcp
 
 ENTRYPOINT ["/entrypoint.sh"]

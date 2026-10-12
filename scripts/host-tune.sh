@@ -59,14 +59,34 @@ if [ -w /sys/module/nf_conntrack/parameters/hashsize ]; then
     echo 131072 > /sys/module/nf_conntrack/parameters/hashsize || true
 fi
 
-# DCO: Linux 6.16+ da shifrlash yadro ichida — tezlik bir necha barobar oshadi.
-if modprobe ovpn 2>/dev/null; then
-    echo ovpn > /etc/modules-load.d/flexvpn-ovpn.conf
-    echo "  OK    ovpn (DCO) moduli yuklandi — 'docker compose restart openvpn' dan keyin yoqiladi"
-else
-    echo "  INFO  ovpn (DCO) moduli yo'q (yadro $(uname -r)). VPN DCO'siz ham to'liq ishlaydi."
-fi
+# DCO moduli bu yerda ATAYLAB yuklanmaydi: konteyner ichida DCO yoqilganda
+# klientlar ulanib, lekin internet ishlamay qolgani kuzatildi.
+
+# ------------------------------------------------------------------- MTU
+# Shifrlangan paket = tun-mtu + 52 bayt (AEAD 24 + UDP 8 + IP 20). U host
+# interfeysi MTU sidan oshsa, har bir katta paket bo'linadi va yo'lda yo'qoladi.
+IFACE="$(ip route show default | awk '/default/ {print $5; exit}')"
+HOST_MTU="$(cat "/sys/class/net/$IFACE/mtu" 2>/dev/null || echo 1500)"
+ENV_FILE="$(dirname "$(readlink -f "$0")")/../.env"
+CUR_TUN="$(grep -E '^VPN_TUN_MTU=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d ' "')"
+CUR_TUN="${CUR_TUN:-1420}"
 
 echo
-echo "Tayyor. Asosiy interfeys MTU si: $(ip -o link show "$(ip route show default | awk '/default/ {print $5; exit}')" | grep -o 'mtu [0-9]*')"
-echo "Agar 1500 dan kichik bo'lsa (masalan 1450), .env da VPN_TUN_MTU ni 1370, VPN_MSSFIX ni 1310 qiling."
+echo "Asosiy interfeys: $IFACE, MTU: $HOST_MTU"
+if [ "$HOST_MTU" -ge 1500 ]; then
+    REC_TUN=1420; REC_MSS=1360
+else
+    REC_TUN=$(( HOST_MTU - 60 )); REC_MSS=$(( HOST_MTU - 100 ))
+fi
+if [ $(( CUR_TUN + 52 )) -gt "$HOST_MTU" ] || [ "$CUR_TUN" -gt "$REC_TUN" ]; then
+    echo
+    echo "!!! DIQQAT: VPN_TUN_MTU=$CUR_TUN bu server uchun juda katta — paketlar bo'linib yo'qoladi."
+    echo "    .env da quyidagilarni qo'ying:"
+    echo "        VPN_TUN_MTU=$REC_TUN"
+    echo "        VPN_MSSFIX=$REC_MSS"
+    echo "    so'ng: docker compose up -d"
+else
+    echo "MTU sozlamasi to'g'ri (VPN_TUN_MTU=$CUR_TUN)."
+fi
+echo
+echo "Tayyor."

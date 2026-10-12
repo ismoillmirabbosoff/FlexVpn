@@ -22,7 +22,7 @@ AUDIT_FILE = os.path.join(STATE_DIR, "audit.jsonl")
 SESSIONS_FILE = os.path.join(STATE_DIR, "sessions.jsonl")
 STATUS_FILE = os.path.join(STATE_DIR, "openvpn-status.log")
 CA_FILE = os.path.join(STATE_DIR, "ca.crt")
-TA_FILE = os.path.join(STATE_DIR, "ta.key")
+TC_FILE = os.path.join(STATE_DIR, "tc.key")
 SERVER_CRT_FILE = os.path.join(STATE_DIR, "server.crt")
 MGMT_PASS_FILE = os.path.join(STATE_DIR, "mgmt.pass")
 

@@ -28,6 +28,20 @@ die() { printf '\n\033[31mXATO: %s\033[0m\n' "$*" >&2; exit 1; }
 [ -f .env ] || die ".env topilmadi. Namunadan nusxa oling: cp .env.example .env"
 command -v docker >/dev/null || die "docker topilmadi"
 
+# ------------------------------------------------------------------- MTU
+# Shifrlangan paket = VPN_TUN_MTU + 52 bayt. Host MTU sidan oshsa paketlar
+# bo'linadi va yo'qoladi — eng ko'p uchraydigan "nestabil VPN" sababi.
+IFACE="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+HOST_MTU="$(cat "/sys/class/net/${IFACE:-eth0}/mtu" 2>/dev/null || echo 1500)"
+TUN_MTU="$(grep -E '^VPN_TUN_MTU=' .env | tail -1 | cut -d= -f2 | tr -d ' "')"
+TUN_MTU="${TUN_MTU:-1420}"
+PROTO="$(grep -E '^VPN_PROTO=' .env | tail -1 | cut -d= -f2 | tr -d ' "')"
+# TCP rejimida tashqi paketlarni TCP o'zi bo'ladi — bu tekshiruv faqat UDP uchun.
+if [ "${PROTO:-tcp}" = "udp" ] && [ $(( TUN_MTU + 52 )) -gt "$HOST_MTU" ]; then
+    printf '\n\033[31m!!! VPN_TUN_MTU=%s server MTU (%s) uchun juda katta.\033[0m\n' "$TUN_MTU" "$HOST_MTU"
+    printf '    .env da qo'"'"'ying: VPN_TUN_MTU=%s  VPN_MSSFIX=%s\n' $(( HOST_MTU - 60 )) $(( HOST_MTU - 100 ))
+fi
+
 # ------------------------------------------------------------------- zaxira
 say "Zaxira: $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"

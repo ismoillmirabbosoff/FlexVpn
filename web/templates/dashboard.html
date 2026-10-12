@@ -146,7 +146,7 @@
           {% if info.uptime %}
           <div><dt>Ish vaqti</dt><dd class="num">{{ info.uptime|dur }}</dd></div>
           {% endif %}
-          <div><dt>Manzil</dt><dd class="mono">{{ server_ip or '—' }}:{{ info.port or 1194 }}/{{ info.proto or 'udp' }}</dd></div>
+          <div><dt>Manzil</dt><dd class="mono">{{ server_ip or '—' }}:{{ info.port or 443 }}/{{ info.proto or 'tcp' }}</dd></div>
           <div><dt>Shifrlash</dt><dd class="mono">{{ info.cipher or 'AES-256-GCM' }}</dd></div>
           <div><dt>Tarmoq</dt><dd class="mono">{{ info.subnet or '10.8.0.0/24' }}</dd></div>
           <div><dt>DNS</dt><dd class="mono">{{ (info.dns or ['—'])|join(', ') }}</dd></div>

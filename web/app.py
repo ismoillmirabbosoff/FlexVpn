@@ -28,8 +28,8 @@ import security
 from vpnauth import hash_password, is_hashed, password_problem, valid_username
 
 SERVER_IP = (os.environ.get("SERVER_IP") or "").strip()
-VPN_PORT = os.environ.get("VPN_PORT", "1194")
-VPN_PROTO = os.environ.get("VPN_PROTO", "udp")
+VPN_PORT = os.environ.get("VPN_PORT", "443")
+VPN_PROTO = "udp" if os.environ.get("VPN_PROTO", "tcp").startswith("udp") else "tcp"
 # Klient .ovpn fayliga yoziladi — entrypoint.sh dagi server qiymati bilan
 # bir xil bo'lishi shart (ikkalasi ham compose'dan bitta manbadan oladi).
 VPN_TUN_MTU = os.environ.get("VPN_TUN_MTU", "1420")
@@ -42,7 +42,7 @@ VPN_MSSFIX = os.environ.get("VPN_MSSFIX", "1360")
 # Server manzili ham izga kiradi: SERVER_IP o'zgarganda eski profillar eski
 # manzil bilan qolib ketmasin (klient butunlay boshqa serverga ulanmasin).
 OVPN_TEMPLATE_MARK = (
-    f"vpnpanel-profile v5 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
+    f"vpnpanel-profile v6 tls-crypt remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
     f"mtu={VPN_TUN_MTU} mss={VPN_MSSFIX}"
 )
 SECURE_COOKIES = (os.environ.get("SECURE_COOKIES") or "auto").lower()
@@ -605,14 +605,21 @@ def _regenerate_keeping_credentials(username: str, path: str) -> None:
 
 def _generate_ovpn(username: str, password: str | None) -> None:
     ca_cert = store.read_text(store.CA_FILE)
-    ta_key = store.read_text(store.TA_FILE)
-    if not ca_cert or not ta_key:
+    tc_key = store.read_text(store.TC_FILE)
+    if not ca_cert or not tc_key:
         return
 
     remote = SERVER_IP or "SERVER-IP-KIRITILMAGAN"
     embedded = ""
     if password is not None:
         embedded = f"\n<auth-user-pass>\n{username}\n{password}\n</auth-user-pass>\n"
+
+    if VPN_PROTO == "udp":
+        # Klient o'chganda server sessiyani darhol bo'shatadi (60 s kutmaydi).
+        # Faqat UDP da ishlaydi — TCP da bu opsiya xato beradi.
+        proto_opts = "explicit-exit-notify 1\n"
+    else:
+        proto_opts = ""
 
     config = f"""# {OVPN_TEMPLATE_MARK}
 client
@@ -633,10 +640,7 @@ tls-version-min 1.2
 # auth-nocache YO'Q: u parolni xotiradan o'chirardi va soatlik qayta kalit
 # almashishda (yoki token eskirganda) klient parol so'rab, ulanish uzilardi.
 auth-user-pass
-key-direction 1
-# Klient o'chganda server sessiyani darhol bo'shatadi (60 s kutmaydi).
-explicit-exit-notify 1
-
+{proto_opts}
 # --- DNS sizishiga qarshi ---------------------------------------------------
 # Server DNS manzillarini yuboradi, lekin ularni qo'llash klientga bog'liq.
 # Windows / Android / iOS / macOS ilovalari buni o'zi bajaradi.
@@ -668,9 +672,10 @@ verb 3
 {ca_cert.strip()}
 </ca>
 
-<tls-auth>
-{ta_key.strip()}
-</tls-auth>
+# tls-crypt: handshake ham shifrlangan — provayder DPI'si OpenVPN'ni taniy olmaydi.
+<tls-crypt>
+{tc_key.strip()}
+</tls-crypt>
 {embedded}"""
 
     os.makedirs(store.OVPN_DIR, exist_ok=True)

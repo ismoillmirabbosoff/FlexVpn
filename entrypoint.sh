@@ -9,8 +9,11 @@ EASYRSA="/usr/share/easy-rsa/easyrsa"
 
 VPN_SUBNET="${VPN_SUBNET:-10.8.0.0}"
 VPN_NETMASK="${VPN_NETMASK:-255.255.255.0}"
-VPN_PORT="${VPN_PORT:-1194}"
-VPN_PROTO="${VPN_PROTO:-udp}"
+# Standart: TCP 443 + tls-crypt. Provayder DPI'si OpenVPN UDP trafigini aniqlab,
+# ulanishdan keyin klient paketlarini tashlab yubormoqda edi. 443/tcp — HTTPS
+# porti, tls-crypt esa handshake'ni ham shifrlab, OpenVPN belgilarini yashiradi.
+VPN_PORT="${VPN_PORT:-443}"
+VPN_PROTO="${VPN_PROTO:-tcp}"
 VPN_DNS1="${VPN_DNS1:-1.1.1.1}"
 VPN_DNS2="${VPN_DNS2:-8.8.8.8}"
 # /24 tarmoqda 252 ta manzil bor. duplicate-cn yoqilganda har bir qurilma alohida
@@ -30,12 +33,18 @@ VPN_TUN_MTU="${VPN_TUN_MTU:-1420}"
 # xatolari to'planadi.
 VPN_DUPLICATE_CN="${VPN_DUPLICATE_CN:-1}"
 VPN_REDIRECT_GATEWAY="${VPN_REDIRECT_GATEWAY:-1}"
-VPN_DCO="${VPN_DCO:-auto}"
+VPN_DCO="${VPN_DCO:-0}"
 
 # Web konteyner shu uid/gid bilan ishlaydi. State katalogi o'sha egaga beriladi,
 # shunda ikkala konteyner ham bir xil fayllar bilan ishlay oladi.
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
+
+case "$VPN_PROTO" in
+    udp|udp4) VPN_PROTO=udp ;;
+    tcp|tcp4|tcp-server) VPN_PROTO=tcp ;;
+    *) echo "XATO: VPN_PROTO=$VPN_PROTO (udp yoki tcp bo'lishi kerak)"; exit 1 ;;
+esac
 
 mkdir -p "$STATE_DIR/lastseen" "$STATE_DIR/disabled" "$OVPN_DIR/users"
 
@@ -73,6 +82,14 @@ if [ ! -f "$OVPN_DIR/ta.key" ]; then
 
     echo "=== Sertifikatlar tayyor ==="
 fi
+
+# tls-crypt kaliti: control kanalni (handshake'ni ham) shifrlaydi va
+# imzolaydi — DPI OpenVPN'ni ochiq ko'rinadigan handshake orqali taniy olmaydi,
+# kalitsiz kelgan har qanday paketga server umuman javob bermaydi.
+if [ ! -s "$OVPN_DIR/tc.key" ]; then
+    openvpn --genkey tls-crypt "$OVPN_DIR/tc.key"
+fi
+chmod 600 "$OVPN_DIR/tc.key"
 
 # auth-gen-token HMAC kaliti. Diskda saqlangani uchun server qayta ishga tushganda
 # ham klientlarning tokenlari amal qiladi va ular parolsiz, bir zumda qayta ulanadi.
@@ -143,6 +160,16 @@ if [ "$VPN_DUPLICATE_CN" = "1" ]; then
     DUPLICATE_LINE="duplicate-cn"
 fi
 
+if [ "$VPN_PROTO" = "udp" ]; then
+    # Server to'xtaganda (yangilash, restart) klientlarga RESTART yuboriladi va
+    # ular 60 soniya ping-restart kutmasdan, darhol qayta ulanadi. Faqat UDP:
+    # TCP da ulanish uzilishini klient o'zi darhol sezadi.
+    PROTO_OPTS="explicit-exit-notify 1"
+else
+    # Kichik paketlar (SSH, RDP, VoIP) Nagle algoritmida kutib qolmasin.
+    PROTO_OPTS='tcp-nodelay'
+fi
+
 # ------------------------------------------------------------------ server config
 cat > "$OVPN_DIR/server.conf" <<EOF
 port $VPN_PORT
@@ -153,7 +180,7 @@ ca $PKI_DIR/ca.crt
 cert $PKI_DIR/issued/server.crt
 key $PKI_DIR/private/server.key
 dh $PKI_DIR/dh.pem
-tls-auth $OVPN_DIR/ta.key 0
+tls-crypt $OVPN_DIR/tc.key
 tls-version-min 1.2
 
 topology subnet
@@ -178,6 +205,8 @@ mssfix $VPN_MSSFIX
 push "tun-mtu $VPN_TUN_MTU"
 # Siqish VORACLE hujumiga yo'l ochadi va zamonaviy trafikda foyda bermaydi.
 allow-compression no
+
+$PROTO_OPTS
 
 # --- NAT ortidagi ko'p klient uchun barqarorlik ------------------------------
 # Ofisdagi o'nlab kompyuter bitta tashqi IP ortida turadi. Router UDP
@@ -219,9 +248,6 @@ client-disconnect "$SCRIPTS_DIR/session-hook.py disconnect"
 
 management 0.0.0.0 7505 $MGMT_PASS_FILE
 
-# Server to'xtaganda (yangilash, restart) klientlarga RESTART yuboriladi va ular
-# 60 soniya ping-restart kutmasdan, darhol qayta ulanadi.
-explicit-exit-notify 1
 
 max-clients $VPN_MAX_CLIENTS
 $DUPLICATE_LINE
@@ -236,7 +262,7 @@ EOF
 # uchun). Server maxfiy kaliti umuman ulashilmaydi — shuning uchun pki katalogini
 # mount qilish o'rniga kerakli ikki faylni state ichiga nusxalaymiz.
 cp -f "$PKI_DIR/ca.crt" "$STATE_DIR/ca.crt"
-cp -f "$OVPN_DIR/ta.key" "$STATE_DIR/ta.key"
+cp -f "$OVPN_DIR/tc.key" "$STATE_DIR/tc.key"
 cp -f "$PKI_DIR/issued/server.crt" "$STATE_DIR/server.crt" 2>/dev/null || true
 
 # Panel serverning haqiqiy sozlamalarini ko'rsatishi uchun.
@@ -265,7 +291,8 @@ touch "$STATE_DIR/openvpn-status.log" "$STATE_DIR/ipp.txt"
 
 chown -R "$PUID:$PGID" "$STATE_DIR" 2>/dev/null || true
 chmod 750 "$STATE_DIR"
-chmod 640 "$STATE_DIR/ta.key"
+chmod 640 "$STATE_DIR/tc.key"
+rm -f "$STATE_DIR/ta.key"
 chmod 600 "$STATE_DIR/mgmt.pass"
 chmod 640 "$STATE_DIR/openvpn-status.log"
 

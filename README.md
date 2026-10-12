@@ -113,6 +113,17 @@ Faollik `data/state/lastseen/<user>` faylidan olinadi — uni OpenVPN'ning
 client-connect/disconnect hooklari yozadi. Hech qachon ulanmagan hisoblar uchun
 hisobning panelga qo'shilgan sanasi ishlatiladi.
 
+## Protokol: TCP 443 + tls-crypt
+
+Provayder DPI'si OpenVPN UDP (1194) trafigini aniqlab, ulanishdan keyin klient
+paketlarini tashlab yubormoqda edi (server tomonida tcpdump bilan tasdiqlangan).
+Shuning uchun server standart holatda **TCP 443** portida va **tls-crypt** bilan
+ishlaydi: port HTTPS bilan bir xil, handshake ham shifrlangan. Klientlarga yangi
+ilova kerak emas — OpenVPN Connect'ning o'zi, faqat paneldan yangi `.ovpn` yuklab
+olinadi (eski profillar yuklab olishda avtomatik yangilanadi, ichidagi parol saqlanadi).
+
+Host'da 443/tcp port bo'sh bo'lishi shart (`ss -ltnp | grep ':443 '`).
+
 ## Tezlik va barqarorlik
 
 - **Parol tekshiruvi fonda (deferred auth)** — OpenVPN skriptni kutayotganda butun
@@ -134,8 +145,9 @@ hisobning panelga qo'shilgan sanasi ishlatiladi.
 - **Barqaror image** — `alpine:3.24` (OpenVPN 2.7.x); `edge` emas.
 - **Docker loglari aylantiriladi** — disk to'lib qolmaydi.
 
-Server tarmoq interfeysining MTU si 1500 dan kichik bo'lsa (masalan 1450), `.env` da
-`VPN_TUN_MTU=1370` va `VPN_MSSFIX=1310` qo'ying.
+Server tarmoq interfeysining MTU si 1500 dan kichik bo'lsa: `VPN_TUN_MTU = MTU - 60`,
+`VPN_MSSFIX = MTU - 100` (masalan MTU 1400 -> 1340 / 1300). `scripts/host-tune.sh` va
+`deploy.sh` buni avtomatik tekshirib, kerakli qiymatni ko'rsatadi.
 
 ## Xavfsizlik
 

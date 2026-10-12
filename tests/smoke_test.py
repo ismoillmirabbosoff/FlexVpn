@@ -247,7 +247,7 @@ def test_users(c: Client) -> None:
     check(".ovpn yaratildi", os.path.exists(ovpn))
 
     conf = open(ovpn).read()
-    for needle in ("<ca>", "<tls-auth>", "tun-mtu", "remote ", "data-ciphers", "connect-retry"):
+    for needle in ("<ca>", "<tls-crypt>", "tun-mtu", "remote ", "data-ciphers", "connect-retry"):
         check(f".ovpn tarkibi: {needle.strip('<>')}", needle in conf)
     check(".ovpn ichida auth-nocache yo'q",
           not any(ln.strip() == "auth-nocache" for ln in conf.splitlines()))
@@ -366,7 +366,7 @@ def test_vpn() -> None:
     for needle in ("tun-mtu", "mssfix", "data-ciphers", "allow-compression no",
                    "verify-client-cert none", "auth-user-pass-verify", "tls-version-min 1.2",
                    # NAT ortidagi ko'p klient uchun barqarorlik sozlamalari
-                   "float", "replay-window", "duplicate-cn"):
+                   "float", "replay-window", "duplicate-cn", "tls-crypt", "proto tcp", "tcp-nodelay"):
         check(f"server.conf: {needle}", needle in conf)
 
     m = re.search(r"keepalive (\d+) (\d+)", conf)
