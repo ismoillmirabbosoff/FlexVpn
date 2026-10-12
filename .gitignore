@@ -1,8 +1,14 @@
 
 # Ish holati: PKI kalitlari, sertifikatlar, foydalanuvchi parollari,
-# sessiya kaliti, .ovpn profillari.
+# sessiya kaliti, .ovpn profillari. HECH QACHON git'ga tushmasligi kerak —
+# git pull ularni o'zgartirmaydi va o'chirmaydi.
 data/
 data.bak.*/
+
+# Serverga xos sozlamalar va parollar. Namuna: .env.example
+.env
+.env.*
+!.env.example
 
 __pycache__/
 *.py[cod]

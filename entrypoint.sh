@@ -13,7 +13,9 @@ VPN_PORT="${VPN_PORT:-1194}"
 VPN_PROTO="${VPN_PROTO:-udp}"
 VPN_DNS1="${VPN_DNS1:-1.1.1.1}"
 VPN_DNS2="${VPN_DNS2:-8.8.8.8}"
-VPN_MAX_CLIENTS="${VPN_MAX_CLIENTS:-100}"
+# /24 tarmoqda 252 ta manzil bor. duplicate-cn yoqilganda har bir qurilma alohida
+# o'rin egallaydi — 100 lik chegara ofisda tez to'lib, yangi ulanishlar rad etilardi.
+VPN_MAX_CLIENTS="${VPN_MAX_CLIENTS:-250}"
 VPN_MSSFIX="${VPN_MSSFIX:-1360}"
 # Tunnel MTU fizik interfeys MTU sidan past bo'lishi SHART: OpenVPN har paketga
 # ~60 bayt qo'shadi (IP 20 + UDP 8 + header + AES-GCM tegi 16 + paket raqami).
@@ -72,6 +74,13 @@ if [ ! -f "$OVPN_DIR/ta.key" ]; then
     echo "=== Sertifikatlar tayyor ==="
 fi
 
+# auth-gen-token HMAC kaliti. Diskda saqlangani uchun server qayta ishga tushganda
+# ham klientlarning tokenlari amal qiladi va ular parolsiz, bir zumda qayta ulanadi.
+if [ ! -s "$OVPN_DIR/auth-token.key" ]; then
+    openvpn --genkey auth-token "$OVPN_DIR/auth-token.key"
+fi
+chmod 600 "$OVPN_DIR/auth-token.key"
+
 # Management interfeysi paroli — web panel shu orqali ulanishni uzadi.
 # 7505-port hostga chiqarilmaydi, faqat compose tarmog'i ichida ko'rinadi.
 MGMT_PASS_FILE="$STATE_DIR/mgmt.pass"
@@ -94,9 +103,13 @@ if [ "$VPN_DCO" = "0" ]; then
 elif ! openvpn --version 2>/dev/null | grep -q '\[DCO\]'; then
     # Paket DCO'siz yig'ilgan — flagni bersak ham foyda yo'q.
     DCO_REASON="openvpn paketi DCO'siz yig'ilgan ($(openvpn --version 2>/dev/null | head -1 | awk '{print $2}'))"
-elif [ -d /sys/module/ovpn ] || [ -d /sys/module/ovpn_dco_v2 ] || [ -c /dev/ovpn ]; then
+elif [ -d /sys/module/ovpn ]; then
     DCO_FLAG=""
     DCO_STATE="on"
+elif [ -d /sys/module/ovpn_dco_v2 ]; then
+    # OpenVPN 2.7 faqat yangi "ovpn" modulini (Linux 6.16+ yoki ovpn-backports)
+    # tushunadi. Eski ovpn-dco-v2 bilan DCO yoqilgandek ko'rinib, aslida ishlamasdi.
+    DCO_REASON="hostda eski ovpn_dco_v2 moduli bor, OpenVPN 2.7 ga yangi 'ovpn' moduli kerak (Linux 6.16+ yoki ovpn-backports)"
 else
     DCO_REASON="hostda ovpn yadro moduli yuklanmagan -> hostda bajaring: sudo modprobe ovpn"
 fi
@@ -108,20 +121,16 @@ else
     [ "$VPN_DCO" = "1" ] && echo "!!! VPN_DCO=1 so'ralgan edi, lekin yoqib bo'lmadi"
 fi
 
-# DCO yoqilganda bu opsiyalarni yadro boshqaradi va openvpn ularni e'tiborsiz
-# qoldiradi, shuning uchun faqat DCO o'chiq bo'lganda yozamiz.
+# UDP soket buferlari. OS standarti (~208 KB) yuklama cho'qqisida to'lib qoladi va
+# kernel paketlarni jimgina tashlaydi — bu VPN'dagi "packet loss" ning eng ko'p
+# uchraydigan sababi. Qiymat hostdagi net.core.rmem_max/wmem_max bilan
+# cheklanadi, shuning uchun hostda scripts/host-tune.sh ni bir marta bajaring.
+VPN_SOCK_BUF="${VPN_SOCK_BUF:-4194304}"
+
 TUNING=""
 if [ "$DCO_STATE" = "off" ]; then
-    TUNING=$(cat <<'TUNEOF'
-# --- o'tkazuvchanlik sozlamalari (faqat DCO o'chiq bo'lganda) ---
-# fast-io 2.7 da olib tashlangan — epoll allaqachon standart.
-sndbuf 0
-rcvbuf 0
-push "sndbuf 0"
-push "rcvbuf 0"
-txqueuelen 1000
-TUNEOF
-)
+    # DCO yoqilganda navbat uzunligini yadro boshqaradi.
+    TUNING="txqueuelen 1000"
 fi
 
 REDIRECT_LINE=""
@@ -155,6 +164,11 @@ $REDIRECT_LINE
 push "dhcp-option DNS $VPN_DNS1"
 push "dhcp-option DNS $VPN_DNS2"
 
+# --- o'tkazuvchanlik ---------------------------------------------------------
+sndbuf $VPN_SOCK_BUF
+rcvbuf $VPN_SOCK_BUF
+push "sndbuf 0"
+push "rcvbuf 0"
 $TUNING
 # Fragmentatsiya tezlikni eng ko'p yeydigan omil — MSS ni oldindan cheklaymiz.
 tun-mtu $VPN_TUN_MTU
@@ -189,11 +203,25 @@ auth SHA256
 verify-client-cert none
 username-as-common-name
 script-security 2
+# Parol tekshiruvi fonda (deferred) bajariladi: skript darhol qaytadi va OpenVPN
+# boshqa userlarning trafigini to'xtatmaydi. Ilgari har bir ulanish/soatlik
+# qayta kalit almashishda butun server ~0.3 s "muzlab", paketlar yo'qolardi.
 auth-user-pass-verify $SCRIPTS_DIR/auth.py via-file
+
+# Muvaffaqiyatli kirishdan keyin klientga token beriladi va soatlik qayta kalit
+# almashish hamda qayta ulanishlar parolsiz o'tadi. external-auth: token bo'lsa
+# ham auth.py chaqiriladi — bloklangan/o'chirilgan/paroli almashgan user tokeni
+# bilan qaytib kira olmaydi. Kalit diskda: server restartidan keyin ham amal qiladi.
+auth-gen-token 0 43200 external-auth
+auth-gen-token-secret $OVPN_DIR/auth-token.key
 client-connect "$SCRIPTS_DIR/session-hook.py connect"
 client-disconnect "$SCRIPTS_DIR/session-hook.py disconnect"
 
 management 0.0.0.0 7505 $MGMT_PASS_FILE
+
+# Server to'xtaganda (yangilash, restart) klientlarga RESTART yuboriladi va ular
+# 60 soniya ping-restart kutmasdan, darhol qayta ulanadi.
+explicit-exit-notify 1
 
 max-clients $VPN_MAX_CLIENTS
 $DUPLICATE_LINE
@@ -253,9 +281,19 @@ add_rule() {  # takroriy ishga tushirishda qoidalar ikkilanmasligi uchun
 
 add_rule nat POSTROUTING -s "$VPN_CIDR" -o "$DEFAULT_IF" -j MASQUERADE
 add_rule filter FORWARD -i tun0 -o "$DEFAULT_IF" -j ACCEPT
-add_rule filter FORWARD -i "$DEFAULT_IF" -o tun0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-# Path MTU ga qarab MSS ni moslash — "sayt ochilmayapti / sekin" muammosini yechadi.
-add_rule mangle FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+add_rule filter FORWARD -i "$DEFAULT_IF" -o tun0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# TCP MSS ni ikkala yo'nalishda ham aniq qiymatga tushiramiz. --clamp-mss-to-pmtu
+# klient -> internet SYN paketida chiquvchi interfeys MTU sini (1500) oladi va
+# hech narsani kamaytirmaydi; DCO rejimida esa openvpn'ning mssfix'i umuman
+# ishlamaydi. Natijada katta paketlar fragmentlanib, yo'lda yo'qolardi.
+# mssfix = shifrlangan UDP yuklamasi; undan AEAD qo'shimchasi (24) va
+# IP+TCP sarlavhalari (40) ayriladi.
+TCP_MSS="${VPN_TCP_MSS:-$(( VPN_MSSFIX - 64 ))}"
+for dir in -i -o; do
+    add_rule mangle FORWARD "$dir" tun0 -p tcp --tcp-flags SYN,RST SYN \
+        -m tcpmss --mss "$(( TCP_MSS + 1 )):65535" -j TCPMSS --set-mss "$TCP_MSS"
+done
 
 echo "=== OpenVPN ishga tushmoqda ($VPN_PROTO/$VPN_PORT, DCO=$DCO_STATE) ==="
 
@@ -271,8 +309,9 @@ fi
 openvpn --config "$OVPN_DIR/server.conf" &
 OVPN_PID=$!
 
-# Signallarni bolaga uzatamiz, aks holda `docker stop` 10 soniya kutadi.
-trap 'kill -TERM "$OVPN_PID" 2>/dev/null' TERM INT
+# Signallarni bolaga uzatamiz va u tugashini kutamiz: openvpn klientlarga
+# RESTART (explicit-exit-notify) yuborib ulgurishi kerak.
+trap 'kill -TERM "$OVPN_PID" 2>/dev/null; wait "$OVPN_PID" 2>/dev/null; exit 0' TERM INT
 
 sleep 6
 if kill -0 "$OVPN_PID" 2>/dev/null; then

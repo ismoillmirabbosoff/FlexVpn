@@ -208,8 +208,9 @@
         </dl>
         {% if info.dco != 'on' %}
         <p style="margin-top:14px;color:var(--text-3);font-size:12.5px">
-          Tezlikni yana oshirish uchun hostda <code class="mono">ovpn-dco</code> yadro modulini
-          yoqing — shifrlash yadro darajasida bajariladi va o'tkazuvchanlik sezilarli oshadi.
+          Tezlikni yana oshirish uchun hostda <code class="mono">ovpn</code> yadro modulini
+          yoqing (Linux 6.16+: <code class="mono">sudo modprobe ovpn</code>) — shifrlash yadro
+          darajasida bajariladi va o'tkazuvchanlik sezilarli oshadi.
         </p>
         {% endif %}
       </div>

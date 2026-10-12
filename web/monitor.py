@@ -21,6 +21,11 @@ MGMT_PORT = int(os.environ.get("VPN_MGMT_PORT", "7505"))
 INACTIVE_DISABLE_DAYS = int(os.environ.get("INACTIVE_DISABLE_DAYS", "30"))
 INACTIVE_DELETE_DAYS = int(os.environ.get("INACTIVE_DELETE_DAYS", "45"))
 JANITOR_INTERVAL = int(os.environ.get("JANITOR_INTERVAL", "3600"))
+# Ulanib turgan userlarning lastseen'i shu oraliqda yangilanadi. Hook faqat
+# ulanish/uzilishda yozadi — haftalab ulanib turgan kompyuterning lastseen'i
+# eskirib qolardi va server qayta ishga tushayotgan paytda janitor uni
+# "faolsiz" deb bloklab yuborishi mumkin edi.
+LASTSEEN_REFRESH = 600
 
 _lock = threading.Lock()
 _clients: dict[str, dict] = {}
@@ -28,6 +33,7 @@ _history: deque = deque(maxlen=HISTORY_POINTS)
 _prev_sample: dict[str, tuple[float, int, int]] = {}
 _server_online = False
 _last_poll = 0.0
+_lastseen_written: dict[str, float] = {}
 
 
 # --------------------------------------------------------------- status fayli
@@ -60,6 +66,7 @@ def _parse_status(text: str) -> list[dict]:
             clients.append({
                 "name": name,
                 "session": f"{name}#{client_id or real_address}",
+                "cid": row.get("Client ID", ""),
                 "real_address": real_address,
                 "vpn_address": row.get("Virtual Address", ""),
                 "bytes_received": _int(row.get("Bytes Received")),
@@ -114,12 +121,25 @@ def poll_once() -> None:
         if key not in seen:
             _prev_sample.pop(key, None)
 
+    _refresh_last_seen(clients, now)
+
     with _lock:
         _server_online = fresh
         _clients.clear()
         _clients.update({c["session"]: c for c in clients})
         _history.append({"ts": int(now), "down": round(total_down), "up": round(total_up)})
         _last_poll = now
+
+
+def _refresh_last_seen(clients: list[dict], now: float) -> None:
+    for name in {c["name"] for c in clients}:
+        if now - _lastseen_written.get(name, 0) < LASTSEEN_REFRESH:
+            continue
+        try:
+            store.touch_last_seen(name, now)
+            _lastseen_written[name] = now
+        except OSError:
+            pass
 
 
 def live_clients() -> list[dict]:
@@ -205,8 +225,21 @@ def _mgmt_command(command: str, timeout: float = 4.0) -> str:
 
 
 def disconnect_client(username: str) -> tuple[bool, str]:
+    """Userning barcha sessiyalarini uzadi.
+
+    `client-kill CID` klientga RESTART xabarini yuboradi: klient darhol qayta
+    ulanadi (bloklangan/paroli almashgan bo'lsa — rad etiladi va to'xtaydi).
+    Oddiy `kill <cn>` esa sessiyani jimgina o'chiradi; klient buni bilmay
+    60 soniya (ping-restart) "o'lik" tunnelda internetsiz qolardi.
+    """
     try:
-        reply = _mgmt_command(f"kill {username}")
+        ids = [c["cid"] for c in _parse_status(_mgmt_command("status 3"))
+               if c["name"] == username and c.get("cid")]
+        if not ids:
+            reply = _mgmt_command(f"kill {username}")
+        else:
+            replies = [_mgmt_command(f"client-kill {cid}") for cid in ids]
+            reply = "SUCCESS" if any("SUCCESS" in r for r in replies) else "\n".join(replies)
     except (OSError, socket.timeout) as exc:
         return False, f"Management interfeysiga ulanib bo'lmadi: {exc}"
     if "SUCCESS" in reply:
@@ -286,6 +319,14 @@ def user_activity(username: str) -> dict:
 def run_janitor() -> dict:
     """30 kun faolsiz -> bloklash, 45 kun -> o'chirish. Idempotent."""
     disabled_now, deleted_now = [], []
+
+    # Status fayli eskirgan bo'lsa (openvpn qayta ishga tushmoqda yoki to'xtagan)
+    # kim ulanganini bilmaymiz. Shunda hech kimni bloklamaymiz — aks holda uzoq
+    # ulanib turgan userlar xato bilan bloklanib, uzilib qolardi.
+    with _lock:
+        ready = _server_online and _last_poll > 0
+    if not ready:
+        return {"disabled": disabled_now, "deleted": deleted_now, "skipped": "vpn-offline"}
 
     for username in store.list_usernames():
         activity = user_activity(username)

@@ -42,6 +42,40 @@ location / {
 }
 ```
 
+## Serverda yangilash (git pull)
+
+Har doim shu skript orqali:
+
+```bash
+bash deploy.sh
+```
+
+U `.env` va butun `data/` ni zaxiraga oladi (`../flexvpn-backups/`), `git pull --ff-only`
+qiladi, image'larni yig'adi (xato bo'lsa ishlab turgan konteynerlarga tegmaydi) va faqat
+o'zgargan servisni qayta yaratadi. Faqat panel o'zgarsa VPN umuman uzilmaydi; VPN
+o'zgarsa klientlar ~5 soniyada o'zi qayta ulanadi (parol so'ralmaydi).
+
+`data/` va `.env` git'da emas — `git pull` ularni hech qachon o'zgartirmaydi va
+o'chirmaydi. **`git clean -fdx` ni hech qachon ishlatmang** — u `data/` ni o'chiradi.
+
+Zaxiradan tiklash:
+
+```bash
+docker compose down
+sudo tar -xzf ../flexvpn-backups/data-YYYYMMDD-HHMMSS.tar.gz
+docker compose up -d
+```
+
+## Host sozlamasi (bir marta)
+
+```bash
+sudo bash scripts/host-tune.sh
+docker compose restart openvpn
+```
+
+UDP buferlarini kattalashtiradi (yuklama cho'qqisida paket yo'qolmasligi uchun), NAT
+jadvalini kengaytiradi va mavjud bo'lsa DCO modulini yuklaydi.
+
 ## Panel imkoniyatlari
 
 **Boshqaruv paneli** — jonli o'tkazuvchanlik grafigi (15 daqiqa), ulangan
@@ -79,33 +113,29 @@ Faollik `data/state/lastseen/<user>` faylidan olinadi — uni OpenVPN'ning
 client-connect/disconnect hooklari yozadi. Hech qachon ulanmagan hisoblar uchun
 hisobning panelga qo'shilgan sanasi ishlatiladi.
 
-## Tezlik
+## Tezlik va barqarorlik
 
-VPN yoqilganda tezlik tushmasligi uchun qilinganlar:
+- **Parol tekshiruvi fonda (deferred auth)** — OpenVPN skriptni kutayotganda butun
+  serverni to'xtatadi. PBKDF2 ~0.2 s oladi, shuning uchun tekshiruv fonda bajariladi va
+  boshqa userlarning trafigi bir lahza ham to'xtamaydi.
+- **auth-token** — birinchi kirishdan keyin klient token oladi. Soatlik qayta kalit
+  almashish va qayta ulanishlar parolsiz, bir zumda o'tadi. Token kaliti diskda —
+  server restartidan keyin ham ishlaydi. Bloklangan, o'chirilgan yoki paroli
+  almashtirilgan user eski tokeni bilan kira olmaydi.
+- **explicit-exit-notify** — server to'xtaganda klientlarga RESTART yuboradi, ular 60
+  soniya kutmasdan darhol qayta ulanadi. Panelning "uzish" tugmasi ham shunday ishlaydi.
+- **DCO** — hostda `ovpn` yadro moduli (Linux 6.16+) bo'lsa avtomatik yoqiladi; shifrlash
+  yadro ichida bajariladi. Eski `ovpn_dco_v2` moduli OpenVPN 2.7 bilan ishlamaydi.
+- **TCP MSS** — iptables ikkala yo'nalishda MSS ni `VPN_MSSFIX - 64` ga tushiradi (DCO
+  rejimida ham). Fragmentatsiya va katta paketlarning yo'qolishi oldi olinadi.
+- **UDP buferlari** — server 4 MB so'raydi (`VPN_SOCK_BUF`); hostda
+  `scripts/host-tune.sh` chegarani ko'taradi.
+- **Siqish o'chirilgan**, shifr `AES-256-GCM` (zaxira: `CHACHA20-POLY1305`).
+- **Barqaror image** — `alpine:3.24` (OpenVPN 2.7.x); `edge` emas.
+- **Docker loglari aylantiriladi** — disk to'lib qolmaydi.
 
-- **DCO (Data Channel Offload)** — hostda `ovpn` yadro moduli bo'lsa avtomatik
-  yoqiladi. Shifrlash yadro ichida bajarilib, foydalanuvchi makoniga nusxalash
-  yo'qoladi. Bu eng katta ta'sir ko'rsatuvchi omil. Holati panelda ko'rinadi.
-- **MSS clamping** — `mssfix 1360` va iptables `--clamp-mss-to-pmtu`. Fragmentatsiya
-  tezlikni eng ko'p yeydigan sabab; bu ikkisi uni oldini oladi.
-- **Buferlar OS ixtiyorida** — `sndbuf 0` / `rcvbuf 0` serverda ham, klientda ham.
-  OpenVPN'ning 64 KB standart buferi tezlikni sun'iy ravishda cheklaydi.
-- **`fast-io`** va `txqueuelen 1000` — UDP uchun syscall sonini kamaytiradi.
-- **Siqish o'chirilgan** (`allow-compression no`) — foyda bermaydi, VORACLE hujumiga
-  yo'l ochadi.
-- **Shifrlar** — `AES-256-GCM` (AES-NI bo'lgan protsessorlarda tez), telefonlar uchun
-  `CHACHA20-POLY1305` zaxira sifatida.
-- **DNS** — Cloudflare `1.1.1.1` birinchi o'rinda, kechikishni kamaytiradi.
-
-DCO ni hostda yoqish (Linux 6.x, ovpn-dco-dkms paketi):
-
-```bash
-sudo apt install ovpn-dco-dkms   # yoki distributivingizdagi paket
-sudo modprobe ovpn_dco_v2
-docker compose restart openvpn
-```
-
-Modul topilmasa DCO avtomatik o'chadi va server odatdagidek ishlayveradi.
+Server tarmoq interfeysining MTU si 1500 dan kichik bo'lsa (masalan 1450), `.env` da
+`VPN_TUN_MTU=1370` va `VPN_MSSFIX=1310` qo'ying.
 
 ## Xavfsizlik
 

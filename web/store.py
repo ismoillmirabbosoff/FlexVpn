@@ -70,7 +70,11 @@ def check_writable() -> None:
 
 
 def atomic_write(path: str, content: str, mode: int = 0o640) -> None:
-    tmp = f"{path}.tmp.{os.getpid()}"
+    # Nuqta bilan boshlanadi — list_usernames() vaqtinchalik faylni user deb
+    # ko'rsatmasin. Thread id: bir nechta gunicorn thread bir faylga bir vaqtda
+    # yozsa, bir-birining vaqtinchalik faylini buzmasin.
+    head, base = os.path.split(path)
+    tmp = os.path.join(head, f".{base}.{os.getpid()}.{threading.get_ident()}.tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(content)
     os.chmod(tmp, mode)
@@ -190,6 +194,10 @@ def last_seen(username: str) -> int | None:
         return None
 
 
+def touch_last_seen(username: str, when: int) -> None:
+    atomic_write(os.path.join(LASTSEEN_DIR, username), str(int(when)), mode=0o644)
+
+
 def is_disabled(username: str) -> bool:
     return os.path.exists(os.path.join(DISABLED_DIR, username))
 
@@ -213,7 +221,7 @@ def list_usernames() -> list[str]:
         return []
     names = []
     for name in os.listdir(USERS_DIR):
-        if name.startswith(".") or name.endswith(".tmp"):
+        if name.startswith(".") or ".tmp" in name:
             continue
         if os.path.isfile(os.path.join(USERS_DIR, name)):
             names.append(name)

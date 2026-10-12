@@ -1,4 +1,6 @@
-ARG BASE=alpine:edge
+# Barqaror Alpine relizi: edge (rolling) har rebuild'da boshqa paket versiyalarini
+# olib kelib, serverni kutilmaganda o'zgartirib qo'yardi. 3.24 — OpenVPN 2.7 + DCO.
+ARG BASE=alpine:3.24
 FROM ${BASE}
 
 RUN apk add --no-cache \

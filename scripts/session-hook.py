@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -IS
 """OpenVPN client-connect / client-disconnect hook.
 
 Ikki narsani yozadi:

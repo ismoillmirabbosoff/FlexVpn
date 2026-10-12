@@ -42,7 +42,7 @@ VPN_MSSFIX = os.environ.get("VPN_MSSFIX", "1360")
 # Server manzili ham izga kiradi: SERVER_IP o'zgarganda eski profillar eski
 # manzil bilan qolib ketmasin (klient butunlay boshqa serverga ulanmasin).
 OVPN_TEMPLATE_MARK = (
-    f"vpnpanel-profile v4 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
+    f"vpnpanel-profile v5 remote={SERVER_IP or '-'}:{VPN_PORT}/{VPN_PROTO} "
     f"mtu={VPN_TUN_MTU} mss={VPN_MSSFIX}"
 )
 SECURE_COOKIES = (os.environ.get("SECURE_COOKIES") or "auto").lower()
@@ -525,7 +525,9 @@ def change_password():
 def run_cleanup():
     result = monitor.run_janitor()
     audit("janitor_manual", detail=str(result))
-    if result["disabled"] or result["deleted"]:
+    if result.get("skipped"):
+        flash("VPN server hozir javob bermayapti — xato bloklash bo'lmasligi uchun tozalash o'tkazib yuborildi", "error")
+    elif result["disabled"] or result["deleted"]:
         flash(
             f"Bloklandi: {len(result['disabled'])} ta, o'chirildi: {len(result['deleted'])} ta",
             "success",
@@ -618,6 +620,8 @@ dev tun
 proto {VPN_PROTO}
 remote {remote} {VPN_PORT}
 resolv-retry infinite
+# Uzilishdan keyin tez qayta ulanish: standart backoff 5 daqiqagacha cho'zilardi.
+connect-retry 2 15
 nobind
 persist-key
 persist-tun
@@ -626,9 +630,12 @@ cipher AES-256-GCM
 data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305
 auth SHA256
 tls-version-min 1.2
+# auth-nocache YO'Q: u parolni xotiradan o'chirardi va soatlik qayta kalit
+# almashishda (yoki token eskirganda) klient parol so'rab, ulanish uzilardi.
 auth-user-pass
-auth-nocache
 key-direction 1
+# Klient o'chganda server sessiyani darhol bo'shatadi (60 s kutmaydi).
+explicit-exit-notify 1
 
 # --- DNS sizishiga qarshi ---------------------------------------------------
 # Server DNS manzillarini yuboradi, lekin ularni qo'llash klientga bog'liq.

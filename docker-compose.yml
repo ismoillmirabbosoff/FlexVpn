@@ -1,9 +1,22 @@
+# Docker loglari cheksiz o'sib diskni to'ldirmasin — disk to'lsa VPN ham, panel ham to'xtaydi.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   openvpn:
     build:
       context: .
       dockerfile: Dockerfile.openvpn
     container_name: openvpn-server
+    # tini PID 1 sifatida: fonda ishlaydigan auth jarayonlarini yig'adi (zombie
+    # qolmaydi) va SIGTERM ni openvpn ga to'g'ri uzatadi.
+    init: true
+    # openvpn to'xtashdan oldin klientlarga RESTART yuborib ulgursin.
+    stop_grace_period: 20s
+    logging: *logging
     cap_add:
       - NET_ADMIN
     devices:
@@ -24,6 +37,8 @@ services:
       - VPN_DCO=${VPN_DCO:-auto}
       - VPN_MSSFIX=${VPN_MSSFIX:-1360}
       - VPN_TUN_MTU=${VPN_TUN_MTU:-1420}
+      - VPN_MAX_CLIENTS=${VPN_MAX_CLIENTS:-250}
+      - VPN_SOCK_BUF=${VPN_SOCK_BUF:-4194304}
       # 1 = bitta hisob bir nechta qurilmada ishlaydi (telefon + noutbuk).
       - VPN_DUPLICATE_CN=${VPN_DUPLICATE_CN:-1}
     restart: unless-stopped
@@ -40,6 +55,8 @@ services:
       context: .
       dockerfile: Dockerfile.web
     container_name: vpn-web-panel
+    init: true
+    logging: *logging
     ports:
       - "127.0.0.1:8080:8080"
     user: "${PUID:-1000}:${PGID:-1000}"

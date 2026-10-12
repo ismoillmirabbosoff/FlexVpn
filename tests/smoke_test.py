@@ -247,8 +247,10 @@ def test_users(c: Client) -> None:
     check(".ovpn yaratildi", os.path.exists(ovpn))
 
     conf = open(ovpn).read()
-    for needle in ("<ca>", "<tls-auth>", "tun-mtu", "remote ", "data-ciphers", "auth-nocache"):
+    for needle in ("<ca>", "<tls-auth>", "tun-mtu", "remote ", "data-ciphers", "connect-retry"):
         check(f".ovpn tarkibi: {needle.strip('<>')}", needle in conf)
+    check(".ovpn ichida auth-nocache yo'q",
+          not any(ln.strip() == "auth-nocache" for ln in conf.splitlines()))
     check(".ovpn ichida parol bor", "BirinchiParol1" in conf)
 
     # takroriy nom
@@ -314,10 +316,15 @@ now, DAY = int(time.time()), 86400
 for name, days in {"qa_yangi": 2, "qa_orta": 20, "qa_eski": 32, "qa_juda_eski": 50}.items():
     store.atomic_write(store.user_path(name), "x\\n", mode=0o640)
     store.atomic_write(os.path.join(store.LASTSEEN_DIR, name), str(now - days*DAY), mode=0o640)
+# VPN holati noma'lum (status o'qilmagan) -> hech kim bloklanmasligi kerak.
+r0 = monitor.run_janitor()
+left0 = sorted(u for u in store.list_usernames() if u.startswith("qa_"))
+monitor.poll_once()
 r1 = monitor.run_janitor(); r2 = monitor.run_janitor(); r3 = monitor.run_janitor()
 left = sorted(u for u in store.list_usernames() if u.startswith("qa_"))
 print(__import__("json").dumps({"disable_days": monitor.INACTIVE_DISABLE_DAYS,
-    "delete_days": monitor.INACTIVE_DELETE_DAYS, "r1": r1, "r2": r2, "r3": r3, "left": left}))
+    "delete_days": monitor.INACTIVE_DELETE_DAYS, "r0": r0, "left0": left0,
+    "r1": r1, "r2": r2, "r3": r3, "left": left}))
 for u in list(store.list_usernames()):
     if u.startswith("qa_"): monitor._delete_user_files(u)
 """
@@ -331,6 +338,9 @@ for u in list(store.list_usernames()):
     check("chegara: 45 kun -> o'chirish", d["delete_days"] == 45, str(d["delete_days"]))
     # Fonda ishlaydigan janitor threadi ham bir vaqtda yurishi mumkin, shuning
     # uchun qaysi yurishda bajarilgani emas, YAKUNIY holat tekshiriladi.
+    check("VPN holati noma'lum bo'lsa janitor hech kimga tegmaydi",
+          d["r0"].get("skipped") == "vpn-offline" and not d["r0"]["disabled"]
+          and len(d["left0"]) == 4, str(d["r0"]))
     disabled_all = set(d["r1"]["disabled"]) | set(d["r2"]["disabled"]) | set(d["r3"]["disabled"])
     deleted_all = set(d["r1"]["deleted"]) | set(d["r2"]["deleted"]) | set(d["r3"]["deleted"])
 
