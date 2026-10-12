@@ -2,13 +2,7 @@
 """OpenVPN `auth-user-pass-verify ... via-file` hook.
 
 argv[1] — vaqtinchalik fayl: 1-qator username, 2-qator parol (yoki auth-token).
-Chiqish kodi 0 = ruxsat, 1 = rad etish, 2 = qaror fonda (deferred).
-
-Nega deferred: OpenVPN skriptni kutayotganda BUTUN serverni to'xtatadi — boshqa
-userlarning paketlari ham ishlanmaydi. PBKDF2 (210k iteratsiya) ~0.2 s oladi va
-bu har bir ulanish va soatlik qayta kalit almashishda takrorlanib, paket
-yo'qolishiga olib kelardi. Endi skript faylni o'qiydi, fork qiladi va darhol 2
-qaytaradi; natija `auth_control_file` ga yoziladi.
+Chiqish kodi 0 = ruxsat, 1 = rad etish.
 
 Auth-token (server.conf: auth-gen-token ... external-auth): birinchi kirishda
 parol tekshiriladi va sessiya yozib qo'yiladi. Keyingi qayta kalit almashish va
@@ -38,7 +32,7 @@ TOKEN_RECORD_TTL = 3 * 86400
 
 TOKEN_OK_STATES = {"Authenticated", "AuthenticatedEmptyUser"}
 
-ALLOW, DENY = "1", "0"
+ALLOW, DENY = "allow", "deny"
 
 
 def log(username: str, outcome: str) -> None:
@@ -164,68 +158,28 @@ def decide(username: str, password: str) -> tuple[str, str]:
     return ALLOW, "ok"
 
 
-def _finish(control_file: str, verdict: str, username: str, reason: str) -> None:
-    log(username, reason)
-    tmp = f"{control_file}.tmp"
-    try:
-        # Atomar yozuv: OpenVPN faylni yarim yozilgan holda o'qib qolmasin.
-        with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(verdict)
-        os.replace(tmp, control_file)
-    except OSError:
-        try:
-            with open(control_file, "w", encoding="utf-8") as fh:
-                fh.write(verdict)
-        except OSError:
-            pass
-
-
 def main() -> None:
     username = password = ""
-    if len(sys.argv) >= 2:
-        try:
-            # Fayl skript qaytgach o'chiriladi — fork'dan OLDIN o'qib olamiz.
-            with open(sys.argv[1], encoding="utf-8") as fh:
-                lines = fh.read().split("\n")
-            username = lines[0].strip() if lines else ""
-            password = lines[1] if len(lines) > 1 else ""
-        except OSError:
-            log("", "unreadable-credentials-file")
-            sys.exit(1)
-    else:
+    if len(sys.argv) < 2:
         log("", "no-credentials-file")
         sys.exit(1)
-
-    control_file = os.environ.get("auth_control_file", "")
-    if not control_file:
-        # Eski OpenVPN yoki qo'lda chaqirish — sinxron rejim.
-        verdict, reason = decide(username, password)
-        log(username, reason)
-        sys.exit(0 if verdict == ALLOW else 1)
-
-    sys.stdout.flush()
-    sys.stderr.flush()
     try:
-        pid = os.fork()
+        with open(sys.argv[1], encoding="utf-8") as fh:
+            lines = fh.read().split("\n")
+        username = lines[0].strip() if lines else ""
+        password = lines[1] if len(lines) > 1 else ""
     except OSError:
-        verdict, reason = decide(username, password)
-        log(username, reason)
-        sys.exit(0 if verdict == ALLOW else 1)
+        log("", "unreadable-credentials-file")
+        sys.exit(1)
 
-    if pid:
-        os._exit(2)  # OpenVPN darhol ishini davom ettiradi
-
-    # Bola jarayon: OpenVPN dan ajralamiz va qarorni faylga yozamiz.
-    try:
-        os.setsid()
-    except OSError:
-        pass
-    try:
-        verdict, reason = decide(username, password)
-    except Exception as exc:  # har qanday holatda ham javob yozilsin
-        verdict, reason = DENY, f"error:{type(exc).__name__}"
-    _finish(control_file, verdict, username, reason)
-    os._exit(0)
+    # Sinxron tekshiruv. Fonda (deferred) rejim TCP serverda natijani klientning
+    # navbatdagi paketigacha ushlab turardi — ulanish 20-60+ soniya cho'zilib,
+    # "TLS key negotiation failed" bilan uzilardi. TCP da qisqa kutish paket
+    # yo'qotmaydi (kernel buferlaydi), PBKDF2 esa faqat yangi ulanishda ishlaydi:
+    # qayta kalit almashish token orqali, millisekundlarda o'tadi.
+    verdict, reason = decide(username, password)
+    log(username, reason)
+    sys.exit(0 if verdict == ALLOW else 1)
 
 
 if __name__ == "__main__":

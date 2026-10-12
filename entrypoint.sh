@@ -232,9 +232,6 @@ auth SHA256
 verify-client-cert none
 username-as-common-name
 script-security 2
-# Parol tekshiruvi fonda (deferred) bajariladi: skript darhol qaytadi va OpenVPN
-# boshqa userlarning trafigini to'xtatmaydi. Ilgari har bir ulanish/soatlik
-# qayta kalit almashishda butun server ~0.3 s "muzlab", paketlar yo'qolardi.
 auth-user-pass-verify $SCRIPTS_DIR/auth.py via-file
 
 # Muvaffaqiyatli kirishdan keyin klientga token beriladi va soatlik qayta kalit

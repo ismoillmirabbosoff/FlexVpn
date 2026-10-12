@@ -42,6 +42,21 @@ if [ "${PROTO:-tcp}" = "udp" ] && [ $(( TUN_MTU + 52 )) -gt "$HOST_MTU" ]; then
     printf '    .env da qo'"'"'ying: VPN_TUN_MTU=%s  VPN_MSSFIX=%s\n' $(( HOST_MTU - 60 )) $(( HOST_MTU - 100 ))
 fi
 
+# ------------------------------------------------------------------- port
+# VPN porti boshqa dastur (masalan nginx) tomonidan band bo'lsa, `up` openvpn
+# konteynerini to'xtatib, yangisini ishga tushira olmaydi va VPN butunlay
+# o'chib qoladi. Shuning uchun hech narsaga tegmasdan oldin tekshiramiz.
+VPN_PORT_CFG="$(grep -E '^VPN_PORT=' .env | tail -1 | cut -d= -f2 | tr -d ' "')"
+VPN_PORT_CFG="${VPN_PORT_CFG:-443}"
+if [ "${PROTO:-tcp}" = "udp" ]; then SS_FLAGS=-lunp; else SS_FLAGS=-ltnp; fi
+if command -v ss >/dev/null; then
+    holder="$(ss -H $SS_FLAGS "sport = :$VPN_PORT_CFG" 2>/dev/null | grep -v docker-proxy || true)"
+    if [ -n "$holder" ]; then
+        echo "$holder"
+        die "VPN porti $VPN_PORT_CFG/${PROTO:-tcp} boshqa dastur tomonidan band. .env da VPN_PORT ni o'zgartiring. Hech narsa o'zgartirilmadi."
+    fi
+fi
+
 # ------------------------------------------------------------------- zaxira
 say "Zaxira: $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"

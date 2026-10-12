@@ -11,8 +11,8 @@ services:
       context: .
       dockerfile: Dockerfile.openvpn
     container_name: openvpn-server
-    # tini PID 1 sifatida: fonda ishlaydigan auth jarayonlarini yig'adi (zombie
-    # qolmaydi) va SIGTERM ni openvpn ga to'g'ri uzatadi.
+    # tini PID 1 sifatida: SIGTERM ni openvpn ga to'g'ri uzatadi va zombie
+    # jarayonlar qolmaydi.
     init: true
     # openvpn to'xtashdan oldin klientlarga RESTART yuborib ulgursin.
     stop_grace_period: 20s

@@ -126,9 +126,9 @@ Host'da 443/tcp port bo'sh bo'lishi shart (`ss -ltnp | grep ':443 '`).
 
 ## Tezlik va barqarorlik
 
-- **Parol tekshiruvi fonda (deferred auth)** — OpenVPN skriptni kutayotganda butun
-  serverni to'xtatadi. PBKDF2 ~0.2 s oladi, shuning uchun tekshiruv fonda bajariladi va
-  boshqa userlarning trafigi bir lahza ham to'xtamaydi.
+- **Parol tekshiruvi tez** — PBKDF2 faqat yangi ulanishda bir marta bajariladi; TCP
+  rejimida bu qisqa kutish paket yo'qotmaydi. (Fonda/deferred tekshiruv TCP serverda
+  ulanishni 20-60 soniyaga cho'zgani uchun olib tashlandi.)
 - **auth-token** — birinchi kirishdan keyin klient token oladi. Soatlik qayta kalit
   almashish va qayta ulanishlar parolsiz, bir zumda o'tadi. Token kaliti diskda —
   server restartidan keyin ham ishlaydi. Bloklangan, o'chirilgan yoki paroli
